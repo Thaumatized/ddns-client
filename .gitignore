@@ -3,7 +3,8 @@
 
 # Config files
 *.ini
-!example.com.ini
+!websites/example.com.ini
+!config.example.ini
 
 # Executable
 dyndns
