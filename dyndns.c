@@ -4,8 +4,39 @@
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
-void get_ipv6(char *ipv6)
+void get_ipv4(char *ipv4, char enabled)
 {
+    if (!enabled)
+    {
+        strcpy(ipv4, "127.0.0.1");
+        return;
+    }
+
+    FILE *fp;
+    char path[15];
+
+    /* Open the command for reading. */
+    fp = popen("/bin/curl https://api.ipify.org --silent", "r");
+    if (fp == NULL) {
+        printf("Failed to run command to get ipv4\n" );
+        exit(1);
+    }
+
+    fgets(path, sizeof(path), fp);
+    memcpy(ipv4, path, sizeof(path));
+
+    /* close */
+    pclose(fp);
+}
+
+void get_ipv6(char *ipv6, char enabled)
+{
+    if (!enabled)
+    {
+        strcpy(ipv6, "::1");
+        return;
+    }
+
     FILE *fp;
     char path[150];
 
@@ -24,25 +55,6 @@ void get_ipv6(char *ipv6)
     }
     // + 10 is to jump over the "    inet6 " part of the string
     memcpy(ipv6, path + 10, ipv6len);
-
-    /* close */
-    pclose(fp);
-}
-
-void get_ipv4(char *ipv4)
-{
-    FILE *fp;
-    char path[15];
-
-    /* Open the command for reading. */
-    fp = popen("/bin/curl https://api.ipify.org --silent", "r");
-    if (fp == NULL) {
-        printf("Failed to run command to get ipv4\n" );
-        exit(1);
-    }
-
-    fgets(path, sizeof(path), fp);
-    memcpy(ipv4, path, sizeof(path));
 
     /* close */
     pclose(fp);
@@ -82,29 +94,11 @@ int main(int argc, char *argv[])
 
     char ipv4[15];
     memset(ipv4, 0, sizeof(ipv4));
-    if(v4)
-    {
-        get_ipv4(ipv4);
-    }
-    else
-    {
-        strcpy(ipv4, "127.0.0.1");
-    }
+    get_ipv4(ipv4, v4);
 
     char ipv6[39];
     memset(ipv6, 0, sizeof(ipv6));
-    if(v6)
-    {
-        get_ipv6(ipv6);
-    }
-    else
-    {
-        strcpy(ipv6, "::1");
-    }
-
-    printf("token: %s\n", token);
-    printf("ipv4: %s\n", ipv4);
-    printf("ipv6: %s\n", ipv6);
+    get_ipv6(ipv6, v6);
 
     return 0;
 }
