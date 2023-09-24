@@ -3,6 +3,7 @@
 #include <string.h>
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
+
 void get_ipv6(char *ipv6)
 {
     FILE *fp;
@@ -28,7 +29,6 @@ void get_ipv6(char *ipv6)
     pclose(fp);
 }
 
-// huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 void get_ipv4(char *ipv4)
 {
     FILE *fp;
@@ -50,16 +50,61 @@ void get_ipv4(char *ipv4)
 
 int main(int argc, char *argv[])
 {
-    char ipv6[39];
-    memset(ipv6, 0, sizeof(ipv6));
-    get_ipv6(ipv6);
+    char token[50];
+    memset(token, 0, sizeof(token));
+    char v4 = 1;
+    char v6 = 1;
+
+    //read config.ini for values
+    FILE *fp;
+    fp = fopen("config.ini", "r");
+    if (fp == NULL) {
+        printf("Failed to open config.ini\n" );
+        exit(1);
+    }
+
+    char line[250];
+    while(fgets(line, sizeof(line), fp) != NULL)
+    {
+        if(strstr(line, "token = ") != NULL)
+        {
+            memcpy(token, line + 8, strlen(line) - 9); // -9 to get rid of the \n
+        }
+        else if(strstr(line, "ipv4 = ") != NULL)
+        {
+            v4 = line[7] - '0';
+        }
+        else if(strstr(line, "ipv6 = ") != NULL)
+        {
+            v6 = line[7] - '0';
+        }
+    }
 
     char ipv4[15];
     memset(ipv4, 0, sizeof(ipv4));
-    get_ipv4(ipv4);
+    if(v4)
+    {
+        get_ipv4(ipv4);
+    }
+    else
+    {
+        strcpy(ipv4, "127.0.0.1");
+    }
 
-    printf("ipv6: %s\n", ipv6);
+    char ipv6[39];
+    memset(ipv6, 0, sizeof(ipv6));
+    if(v6)
+    {
+        get_ipv6(ipv6);
+    }
+    else
+    {
+        strcpy(ipv6, "::1");
+    }
+
+    printf("token: %s\n", token);
     printf("ipv4: %s\n", ipv4);
+    printf("ipv6: %s\n", ipv6);
 
     return 0;
 }
