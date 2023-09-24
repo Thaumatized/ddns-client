@@ -3,7 +3,6 @@
 
 # Config files
 *.ini
-!websites/example.com.ini
 !config.example.ini
 
 # Executable

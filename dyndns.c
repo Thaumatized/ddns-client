@@ -1,8 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
+
+struct configuration
+{
+    char token[50];
+    char v4;
+    char v6;
+};
+
 
 void get_ipv4(char *ipv4, char enabled)
 {
@@ -60,13 +69,8 @@ void get_ipv6(char *ipv6, char enabled)
     pclose(fp);
 }
 
-int main(int argc, char *argv[])
+void getConfig(struct configuration *config)
 {
-    char token[50];
-    memset(token, 0, sizeof(token));
-    char v4 = 1;
-    char v6 = 1;
-
     //read config.ini for values
     FILE *fp;
     fp = fopen("config.ini", "r");
@@ -80,25 +84,33 @@ int main(int argc, char *argv[])
     {
         if(strstr(line, "token = ") != NULL)
         {
-            memcpy(token, line + 8, strlen(line) - 9); // -9 to get rid of the \n
+            memcpy(config->token, line + 8, strlen(line) - 9); // -9 to get rid of the \n
         }
         else if(strstr(line, "ipv4 = ") != NULL)
         {
-            v4 = line[7] - '0';
+            config->v4 = line[7] - '0';
         }
         else if(strstr(line, "ipv6 = ") != NULL)
         {
-            v6 = line[7] - '0';
+            config->v6 = line[7] - '0';
         }
     }
 
+    fclose(fp);
+}
+
+int main(int argc, char *argv[])
+{
+    struct configuration config = {};
+    getConfig(&config);
+
     char ipv4[15];
     memset(ipv4, 0, sizeof(ipv4));
-    get_ipv4(ipv4, v4);
+    get_ipv4(ipv4, config.v4);
 
     char ipv6[39];
     memset(ipv6, 0, sizeof(ipv6));
-    get_ipv6(ipv6, v6);
+    get_ipv6(ipv6, config.v6);
 
     return 0;
 }
