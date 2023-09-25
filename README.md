@@ -2,17 +2,15 @@
   
 This is my custom dynamic domain name service client. This works with cloudflare currently, as it is the dns provider I am using. It shouldn't be too hard to add support for other providers.  
   
-# Compiling
+The project is also currently only targeting debian, as it is the only operating system relevant to my use case. It shouldn't be too hard to add support for other operating systems, as this is a relatively simple program. Finding the current ipv6 address is the only thing that might be a bit tricky.
   
-## Linux
+# Compiling
   
 use `gcc dyndns.c -o dyndns` to compile.  
   
 # Config
 
-## config.ini
-
-To get started with config ini rename `config.example.ini` to `config.ini` and change the values to suit you.
+To get started with `config.ini` rename `config.example.ini` to `config.ini` and change the values to suit you.
 Booleans are represented as 1 and 0.
 
 ### Initialization configuration
