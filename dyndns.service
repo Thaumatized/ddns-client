@@ -1,0 +1,20 @@
+[Unit]
+SourcePath=/custom/dyndns/dyndns
+Description= Dynamic DNS client
+After=network-online.target
+
+[Service]
+Type=simple
+Restart=on-failure
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+KillMode=process
+KillSignal=SIGINT
+GuessMainPID=no
+RemainAfterExit=yes
+WorkingDirectory=/custom/dyndns
+ExecStart=./dyndns
+
+[Install]
+WantedBy=multi-user.target
+Wants=network-online.target
