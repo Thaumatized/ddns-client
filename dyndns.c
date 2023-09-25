@@ -16,6 +16,29 @@ struct configuration
     char ipv6[39];
 };
 
+char valid_ipv4(char *ipv4)
+{
+    int len = strlen(ipv4);
+    if(len < 7 || len > 15)
+    {
+        return 0;
+    }
+
+    int i;
+    for(i = 0; i < len; i++)
+    {
+        if(ipv4[i] == '.')
+        {
+            continue;
+        }
+        else if(ipv4[i] < '0' || ipv4[i] > '9')
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
 
 void get_ipv4(char *ipv4, char enabled)
 {
@@ -29,19 +52,59 @@ void get_ipv4(char *ipv4, char enabled)
     char path[15];
 
     /* Open the command for reading. */
-    fp = popen("/bin/curl https://api.ipify.org --silent", "r");
+    fp = popen("/bin/curl https://api.ipify.org --silent --max-time 5", "r");
     if (fp == NULL) {
         printf("Failed to run command to get ipv4\n" );
         exit(1);
     }
 
     fgets(path, sizeof(path), fp);
-    memcpy(ipv4, path, sizeof(path));
+    if(valid_ipv4(path))
+    {
+        memset(ipv4, 0, sizeof(ipv4));
+        memcpy(ipv4, path, sizeof(path));
+    }
+    else
+    {
+        printf("Failed to get ipv4\n");
+    }
 
     /* close */
     pclose(fp);
 
     printf("IPv4: %s\n", ipv4);
+}
+
+char valid_ipv6(char *ipv6)
+{
+    int len = 0;
+    while(
+        ipv6[len] != '/'
+        && ipv6[len] != '\0'
+        && ipv6[len] != '\n'
+        && ipv6[len] != ' '
+    ){
+        len++;
+    }
+    if(len < 2 || len > 39)
+    {
+        return 0;
+    }
+
+    int i;
+    for(i = 0; i < len; i++)
+    {
+        if(ipv6[i] != ':'
+            && (ipv6[i] < '0' || ipv6[i] > '9')
+            && (ipv6[i] < 'a' || ipv6[i] > 'f')
+            && (ipv6[i] < 'A' || ipv6[i] > 'F')
+            )
+        {
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 void get_ipv6(char *ipv6, char enabled)
@@ -62,6 +125,7 @@ void get_ipv6(char *ipv6, char enabled)
         exit(1);
     }
     
+    char ipv6gotset = 0;
     while(fgets(path, sizeof(path), fp) != NULL)
     {
         if(strncmp(path + 10, "fd", 2) == 0)
@@ -69,14 +133,26 @@ void get_ipv6(char *ipv6, char enabled)
             continue;
         }
 
-        int ipv6len = 0;
-        while(path[ipv6len+10] != '/')
+        if(valid_ipv6(path + 10))
         {
-            ipv6len++;
+            int ipv6len = 0;
+            while(path[ipv6len+10] != '/' && ipv6len < 39)
+            {
+                ipv6len++;
+            }
+            // + 10 is to jump over the "    inet6 " part of the string
+
+            memset(ipv6, 0, sizeof(ipv6));
+            memcpy(ipv6, path + 10, ipv6len);
+
+            ipv6gotset = 1;
         }
-        // + 10 is to jump over the "    inet6 " part of the string
-        memcpy(ipv6, path + 10, ipv6len);
     };
+
+    if(!ipv6gotset)
+    {
+        printf("Failed to get ipv6\n");
+    }
 
     /* close */
     pclose(fp);
@@ -89,6 +165,11 @@ char fetch_ips(struct configuration *config)
     printf("Fetching IPs\n");
     char ipv4[15];
     char ipv6[39];
+
+    //These are important to prevent the program from updating the records if one of the IPs is invalid
+    memcpy(ipv4, config->ipv4, sizeof(ipv4));
+    memcpy(ipv6, config->ipv6, sizeof(ipv6));
+
     get_ipv4(ipv4, config->v4);
     get_ipv6(ipv6, config->v6);
 
@@ -97,10 +178,12 @@ char fetch_ips(struct configuration *config)
         printf("IPs changed\n");
         memcpy(config->ipv4, ipv4, sizeof(ipv4));
         memcpy(config->ipv6, ipv6, sizeof(ipv6));
+        printf("\n");
         return 1;
     }
     else
     {
+        printf("\n");
         return 0;
     }
 }
