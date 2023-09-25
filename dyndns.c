@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <unistd.h>
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
@@ -10,6 +11,7 @@ struct configuration
     char token[50];
     char v4;
     char v6;
+    int interval;
     char ipv4[15];
     char ipv6[39];
 };
@@ -82,6 +84,27 @@ void get_ipv6(char *ipv6, char enabled)
     printf("IPv6: %s\n", ipv6);
 }
 
+char fetch_ips(struct configuration *config)
+{
+    printf("Fetching IPs\n");
+    char ipv4[15];
+    char ipv6[39];
+    get_ipv4(ipv4, config->v4);
+    get_ipv6(ipv6, config->v6);
+
+    if(strcmp(ipv4, config->ipv4) != 0 || strcmp(ipv6, config->ipv6) != 0)
+    {
+        printf("IPs changed\n");
+        memcpy(config->ipv4, ipv4, sizeof(ipv4));
+        memcpy(config->ipv6, ipv6, sizeof(ipv6));
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 void getConfig(struct configuration *config)
 {
     //read config.ini for values
@@ -107,6 +130,10 @@ void getConfig(struct configuration *config)
         {
             config->v6 = line[7] - '0';
         }
+        else if(strstr(line, "interval = ") != NULL)
+        {
+            config->interval = atoi(line + 11);
+        }
     }
 
     if(config->token[0] == '\0')
@@ -120,10 +147,6 @@ void getConfig(struct configuration *config)
         printf("Both ipv4 and ipv6 are disabled in config.ini\n");
         exit(1);
     }
-
-
-    get_ipv4(config->ipv4, config->v4);
-    get_ipv6(config->ipv6, config->v6);
 
     fclose(fp);
 }
@@ -176,11 +199,8 @@ void setRecord(struct configuration *config, char *zone, char* name, char *recor
     }
 }
 
-int main(int argc, char *argv[])
+void update_ips(struct configuration * config)
 {
-    struct configuration config = {};
-    getConfig(&config);
-
     //read config.ini for cloudflare ids
     FILE *fp;
     fp = fopen("config.ini", "r");
@@ -220,17 +240,30 @@ int main(int argc, char *argv[])
 
             memset(record, 0, sizeof(record));
             memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(&config, zone, name, record, 0);
+            setRecord(config, zone, name, record, 0);
         }
         else if(strstr(line, "ipv6 = ") != NULL)
         {
             memset(record, 0, sizeof(record));
             memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(&config, zone, name, record, 1);
+            setRecord(config, zone, name, record, 1);
         }
     }
 
     fclose(fp);
+}
 
-    return 0;
+int main(int argc, char *argv[])
+{
+    struct configuration config = {};
+    getConfig(&config);
+
+    while(1)
+    {
+        if(fetch_ips(&config))
+        {
+            update_ips(&config);
+        }
+        sleep(config.interval);
+    }
 }

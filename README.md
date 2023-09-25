@@ -12,6 +12,7 @@ At the top of the file there should be Initialization configuration. The fields 
 `token` Cloud flare api token.  
 `v4` Wether ipv4 is enabled. Useful in networks without ipv4.  
 `v6` Wether ipv6 is enabled. Useful in networks without ipv6.  
+`interval` How often to check if ip has changed in seconds.
   
 ### Records configuration
   
