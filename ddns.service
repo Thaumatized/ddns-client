@@ -1,5 +1,5 @@
 [Unit]
-SourcePath=/custom/dyndns/dyndns
+SourcePath=/custom/ddns/ddns
 Description= Dynamic DNS client
 After=network-online.target
 
@@ -12,8 +12,8 @@ KillMode=process
 KillSignal=SIGINT
 GuessMainPID=no
 RemainAfterExit=yes
-WorkingDirectory=/custom/dyndns/
-ExecStart=/custom/dyndns/dyndns
+WorkingDirectory=/ddns/ddns/
+ExecStart=/custom/ddns/ddns
 
 [Install]
 WantedBy=multi-user.target

@@ -267,8 +267,7 @@ void setRecord(struct configuration *config, char *zone, char* name, char *recor
         --data '{ \
             \"content\": \"%s\", \
             \"name\": \"%s\", \
-            \"type\": \"%s\", \
-            \"proxied\": true \
+            \"type\": \"%s\" \
         }' \
         ", url, config->token, ip, name, type);
 

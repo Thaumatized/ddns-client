@@ -1,12 +1,12 @@
-# dyndns
+# ddns
   
-This is my custom dynamic domain name service client. This works with cloudflare currently, as it is the dns provider I am using. It shouldn't be too hard to add support for other providers.  
+This is my custom dynamic domain name service (ddns) client. This works with cloudflare currently, as it is the dns provider I am using. It shouldn't be too hard to add support for other providers.  
   
 The project is also currently only targeting debian, as it is the only operating system relevant to my use case. It shouldn't be too hard to add support for other operating systems, as this is a relatively simple program. Finding the current ipv6 address is the only thing that might be a bit tricky.
   
 # Compiling
   
-use `gcc dyndns.c -o dyndns` to compile.  
+use `gcc ddns.c -o ddns` to compile.  
   
 # Config
 
