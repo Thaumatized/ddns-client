@@ -12,8 +12,8 @@ KillMode=process
 KillSignal=SIGINT
 GuessMainPID=no
 RemainAfterExit=yes
-WorkingDirectory=/custom/dyndns
-ExecStart=./dyndns
+WorkingDirectory=/custom/dyndns/
+ExecStart=/custom/dyndns/dyndns
 
 [Install]
 WantedBy=multi-user.target
