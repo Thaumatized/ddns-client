@@ -1,3 +1,13 @@
+# dyndns
+  
+This is my custom dynamic domain name service client. This works with cloudflare currently, as it is the dns provider I am using. It shouldn't be too hard to add support for other providers.  
+  
+# Compiling
+  
+## Linux
+  
+use `gcc dyndns.c -o dyndns` to compile.  
+  
 # Config
 
 ## config.ini
