@@ -128,11 +128,6 @@ void get_ipv6(char *ipv6, char enabled)
     char ipv6gotset = 0;
     while(fgets(path, sizeof(path), fp) != NULL)
     {
-        if(strncmp(path + 10, "fd", 2) == 0)
-        {
-            continue;
-        }
-
         if(valid_ipv6(path + 10))
         {
             int ipv6len = 0;
@@ -146,6 +141,7 @@ void get_ipv6(char *ipv6, char enabled)
             memcpy(ipv6, path + 10, ipv6len);
 
             ipv6gotset = 1;
+            break;
         }
     };
 
