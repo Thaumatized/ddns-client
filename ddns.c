@@ -48,6 +48,8 @@ void get_ipv4(char *ipv4, char enabled)
         return;
     }
 
+    printf("Fetching ipv4:\n");
+
     FILE *fp;
     char path[15];
 
@@ -104,6 +106,18 @@ char valid_ipv6(char *ipv6)
         }
     }
 
+    //Exclude link local addresses
+    if(ipv6[0] == 'f' && ipv6[1] == 'e' && ipv6[2] == '8' && ipv6[3] == '0')
+    {
+        return 0;
+    }
+
+    //Exclude ULA addresses
+    if(ipv6[0] == 'f' && (ipv6[1] == 'c'  || ipv6[1] == 'd'))
+    {
+        return 0;
+    }
+
     return 1;
 }
 
@@ -114,6 +128,8 @@ void get_ipv6(char *ipv6, char enabled)
         strcpy(ipv6, "::1");
         return;
     }
+
+    printf("Fetching ipv6:\n");
 
     FILE *fp;
     char path[150];
@@ -128,6 +144,7 @@ void get_ipv6(char *ipv6, char enabled)
     char ipv6gotset = 0;
     while(fgets(path, sizeof(path), fp) != NULL)
     {
+        printf("evaluating : %s", path);
         if(valid_ipv6(path + 10))
         {
             int ipv6len = 0;
@@ -143,6 +160,7 @@ void get_ipv6(char *ipv6, char enabled)
             ipv6gotset = 1;
             break;
         }
+        printf("rejected.\n");
     };
 
     if(!ipv6gotset)
