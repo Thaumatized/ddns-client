@@ -4,6 +4,9 @@
 #include <dirent.h>
 #include <unistd.h>
 
+#define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
+#define IPV6STRINGLENGTH 40 // 1234:5678:90AB:CDEF:1234:5678:90AB:CDEF + Null
+
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
 struct configuration
@@ -12,14 +15,14 @@ struct configuration
     char v4;
     char v6;
     int interval;
-    char ipv4[15];
-    char ipv6[39];
+    char ipv4[IPV4STRINGLENGTH];
+    char ipv6[IPV6STRINGLENGTH];
 };
 
 char valid_ipv4(char *ipv4)
 {
     int len = strlen(ipv4);
-    if(len < 7 || len > 15)
+    if(len < 7 || len >= IPV4STRINGLENGTH)
     {
         return 0;
     }
@@ -51,7 +54,7 @@ void get_ipv4(char *ipv4, char enabled)
     printf("Fetching ipv4:\n");
 
     FILE *fp;
-    char path[15];
+    char path[IPV4STRINGLENGTH];
 
     /* Open the command for reading. */
     fp = popen("/bin/curl https://api.ipify.org --silent --max-time 5", "r");
@@ -63,7 +66,7 @@ void get_ipv4(char *ipv4, char enabled)
     fgets(path, sizeof(path), fp);
     if(valid_ipv4(path))
     {
-        memset(ipv4, 0, sizeof(ipv4));
+        memset(ipv4, 0, IPV4STRINGLENGTH);
         memcpy(ipv4, path, sizeof(path));
     }
     else
@@ -88,7 +91,7 @@ char valid_ipv6(char *ipv6)
     ){
         len++;
     }
-    if(len < 2 || len > 39)
+    if(len < 2 || len >= IPV6STRINGLENGTH)
     {
         return 0;
     }
@@ -148,13 +151,13 @@ void get_ipv6(char *ipv6, char enabled)
         if(valid_ipv6(path + 10))
         {
             int ipv6len = 0;
-            while(path[ipv6len+10] != '/' && ipv6len < 39)
+            while(path[ipv6len+10] != '/' && ipv6len < IPV6STRINGLENGTH)
             {
                 ipv6len++;
             }
             // + 10 is to jump over the "    inet6 " part of the string
 
-            memset(ipv6, 0, sizeof(ipv6));
+            memset(ipv6, 0, IPV6STRINGLENGTH);
             memcpy(ipv6, path + 10, ipv6len);
 
             ipv6gotset = 1;
@@ -177,8 +180,8 @@ void get_ipv6(char *ipv6, char enabled)
 char fetch_ips(struct configuration *config)
 {
     printf("Fetching IPs\n");
-    char ipv4[15];
-    char ipv6[39];
+    char ipv4[IPV4STRINGLENGTH];
+    char ipv6[IPV6STRINGLENGTH];
 
     //These are important to prevent the program from updating the records if one of the IPs is invalid
     memcpy(ipv4, config->ipv4, sizeof(ipv4));
@@ -260,7 +263,7 @@ void setRecord(struct configuration *config, char *zone, char* name, char *recor
         char url[200];
         memset(url, 0, sizeof(url));
         sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zone, record);
-        char ip[39];
+        char ip[IPV6STRINGLENGTH];
         char type[5];
         memset(ip, 0, sizeof(ip));
         memset(type, 0, sizeof(type));
