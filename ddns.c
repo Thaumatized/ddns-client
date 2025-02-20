@@ -55,6 +55,7 @@ void get_ipv4(char *ipv4, char enabled)
 
     FILE *fp;
     char path[IPV4STRINGLENGTH];
+    memset(path, 0, sizeof(path));
 
     /* Open the command for reading. */
     fp = popen("/bin/curl https://api.ipify.org --silent --max-time 5", "r");
@@ -136,6 +137,7 @@ void get_ipv6(char *ipv6, char enabled)
 
     FILE *fp;
     char path[150];
+    memset(path, 0, sizeof(path));
 
     /* Open the command for reading. */
     fp = popen("/bin/ip address | grep \"/64 scope global dynamic mngtmpaddr\"", "r");
@@ -164,6 +166,7 @@ void get_ipv6(char *ipv6, char enabled)
             break;
         }
         printf("rejected.\n");
+        memset(path, 0, sizeof(path));
     };
 
     if(!ipv6gotset)
