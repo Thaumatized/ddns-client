@@ -9,9 +9,13 @@
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
+char stringBeginsWithString(char* string, char* beginsWith)
+{
+    return strncmp(string, beginsWith, strlen(beginsWith)) == 0;
+}
+
 struct configuration
 {
-    char token[50];
     char v4;
     char v6;
     int interval;
@@ -219,42 +223,91 @@ void getConfig(struct configuration *config)
     }
 
     char line[250];
+
+    //Used for verification
+    unsigned int lineNumber = 0;
+    unsigned int earliestToken = 0;
+    unsigned int earliestZone = 0;
+    unsigned int earliestName = 0;
+    unsigned int earliestRecordId = 0;
+
     while(fgets(line, sizeof(line), fp) != NULL)
     {
-        if(strstr(line, "token = ") != NULL)
+        lineNumber++;
+        if(stringBeginsWithString(line, "token = "))
         {
-            memcpy(config->token, line + 8, strlen(line) - 8 - 1);
+            if(earliestToken == 0)
+            earliestToken = lineNumber;
         }
-        else if(strstr(line, "ipv4 = ") != NULL)
+        else if(stringBeginsWithString(line, "zone = "))
         {
-            config->v4 = line[7] - '0';
+            if(earliestZone == 0)
+            earliestZone = lineNumber;
         }
-        else if(strstr(line, "ipv6 = ") != NULL)
+        else if(stringBeginsWithString(line, "name = "))
         {
-            config->v6 = line[7] - '0';
+            if(earliestName == 0)
+            earliestName = lineNumber;
         }
-        else if(strstr(line, "interval = ") != NULL)
+        else if(stringBeginsWithString(line, "ipv4 = "))
+        {
+            config->v4 = 1;
+            if(earliestRecordId == 0)
+            earliestRecordId = lineNumber;
+        }
+        else if(stringBeginsWithString(line, "ipv6 = "))
+        {
+            config->v6 = 1;
+            if(earliestRecordId == 0)
+            earliestRecordId = lineNumber;
+        }
+        else if(stringBeginsWithString(line, "interval = "))
         {
             config->interval = atoi(line + 11);
         }
     }
 
-    if(config->token[0] == '\0')
+    if(earliestToken == 0)
     {
         printf("No token specified in config.ini\n");
         exit(1);
     }
-
-    if(config->v4 == 0 && config->v6 == 0)
+    if(earliestZone == 0)
     {
-        printf("Both ipv4 and ipv6 are disabled in config.ini\n");
+        printf("No zone specified in config.ini\n");
+        exit(1);
+    }
+    if(earliestName == 0)
+    {
+        printf("No Name specified in config.ini\n");
+        exit(1);
+    }
+    if(earliestRecordId == 0)
+    {
+        printf("No records specified in config.ini\n");
+        exit(1);
+    }
+
+    if(earliestToken > earliestRecordId)
+    {
+        printf("A token must be defined before record Id:s config.ini, %u %u \n", earliestToken, earliestRecordId);
+        exit(1);
+    }
+    if(earliestZone > earliestRecordId)
+    {
+        printf("A zone must be defined before record Id:s config.ini\n");
+        exit(1);
+    }
+    if(earliestName > earliestRecordId)
+    {
+        printf("A name must be defined before record Id:s config.ini\n");
         exit(1);
     }
 
     fclose(fp);
 }
 
-void setRecord(struct configuration *config, char *zone, char* name, char *record, char ipv6)
+void setRecord(struct configuration *config, char* token, char *zone, char* name, char *record, char ipv6)
 {
     if(zone[0] == '\0')
     {
@@ -293,7 +346,7 @@ void setRecord(struct configuration *config, char *zone, char* name, char *recor
             \"name\": \"%s\", \
             \"type\": \"%s\" \
         }' \
-        ", url, config->token, ip, name, type);
+        ", url, token, ip, name, type);
 
         printf("Updating %s (%s) to %s\n", name, type, ip);
         system(command);
@@ -314,6 +367,7 @@ void update_ips(struct configuration * config)
     printf("\n");
 
     char line[250];
+    char token[50];
     char zone[50];
     char name[255];
     char record[50];
@@ -327,28 +381,32 @@ void update_ips(struct configuration * config)
             newline = 1;
         }
 
-        if(strstr(line, "zone = ") != NULL)
+        if(stringBeginsWithString(line, "token = "))
+        {
+            memcpy(token, line + 8, strlen(line) - 8 - 1);
+        }
+        else if(stringBeginsWithString(line, "zone = "))
         {
             memset(zone, 0, sizeof(zone));
             memcpy(zone, line + 7, strlen(line) - 7 - newline);
         }
-        else if(strstr(line, "name = ") != NULL)
+        else if(stringBeginsWithString(line, "name = "))
         {
             memset(name, 0, sizeof(name));
             memcpy(name, line + 7, strlen(line) - 7 - newline);
         }
-        else if(strstr(line, "ipv4 = ") != NULL)
+        else if(stringBeginsWithString(line, "ipv4 = "))
         {
 
             memset(record, 0, sizeof(record));
             memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(config, zone, name, record, 0);
+            setRecord(config, token, zone, name, record, 0);
         }
-        else if(strstr(line, "ipv6 = ") != NULL)
+        else if(stringBeginsWithString(line, "ipv6 = "))
         {
             memset(record, 0, sizeof(record));
             memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(config, zone, name, record, 1);
+            setRecord(config, token, zone, name, record, 1);
         }
     }
 
