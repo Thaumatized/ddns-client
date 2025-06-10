@@ -16,9 +16,10 @@ char stringBeginsWithString(char* string, char* beginsWith)
 
 struct configuration
 {
+    int interval;
+    int throttle;
     char v4;
     char v6;
-    int interval;
     char ipv4[IPV4STRINGLENGTH];
     char ipv6[IPV6STRINGLENGTH];
 };
@@ -265,6 +266,10 @@ void getConfig(struct configuration *config)
         {
             config->interval = atoi(line + 11);
         }
+        else if(stringBeginsWithString(line, "throttle = "))
+        {
+            config->throttle = atoi(line + 11);
+        }
     }
 
     if(earliestToken == 0)
@@ -309,49 +314,43 @@ void getConfig(struct configuration *config)
 
 void setRecord(struct configuration *config, char* token, char *zone, char* name, char *record, char ipv6)
 {
-    if(zone[0] == '\0')
+    char url[200];
+    memset(url, 0, sizeof(url));
+    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zone, record);
+    char ip[IPV6STRINGLENGTH];
+    char type[5];
+    memset(ip, 0, sizeof(ip));
+    memset(type, 0, sizeof(type));
+    if(ipv6)
     {
-        printf("record id %s specified before any zone", record);
-        exit(1);
+        memcpy(ip, config->ipv6, strlen(config->ipv6));
+        strcpy(type, "AAAA");
     }
     else
     {
-        char url[200];
-        memset(url, 0, sizeof(url));
-        sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zone, record);
-        char ip[IPV6STRINGLENGTH];
-        char type[5];
-        memset(ip, 0, sizeof(ip));
-        memset(type, 0, sizeof(type));
-        if(ipv6)
-        {
-            memcpy(ip, config->ipv6, strlen(config->ipv6));
-            strcpy(type, "AAAA");
-        }
-        else
-        {
-            memcpy(ip, config->ipv4, strlen(config->ipv4));
-            strcpy(type, "A");
-        }
-
-        char command[1000];
-        memset(command, 0, sizeof(command));
-        sprintf(command, "/bin/curl \
-        --request PUT \
-        --url %s \
-        --header 'Content-Type: application/json' \
-        --header 'Authorization: Bearer %s' \
-        --data '{ \
-            \"content\": \"%s\", \
-            \"name\": \"%s\", \
-            \"type\": \"%s\" \
-        }' \
-        ", url, token, ip, name, type);
-
-        printf("Updating %s (%s) to %s\n", name, type, ip);
-        system(command);
-        printf("\n\n");
+        memcpy(ip, config->ipv4, strlen(config->ipv4));
+        strcpy(type, "A");
     }
+
+    char command[1000];
+    memset(command, 0, sizeof(command));
+    sprintf(command, "/bin/curl \
+    --request PUT \
+    --url %s \
+    --header 'Content-Type: application/json' \
+    --header 'Authorization: Bearer %s' \
+    --data '{ \
+        \"content\": \"%s\", \
+        \"name\": \"%s\", \
+        \"type\": \"%s\" \
+    }' \
+    ", url, token, ip, name, type);
+
+    printf("Updating %s (%s) to %s\n", name, type, ip);
+    system(command);
+    printf("\n\n");
+
+    sleep(config->throttle);
 }
 
 void update_ips(struct configuration * config)
@@ -383,7 +382,8 @@ void update_ips(struct configuration * config)
 
         if(stringBeginsWithString(line, "token = "))
         {
-            memcpy(token, line + 8, strlen(line) - 8 - 1);
+            memset(token, 0, sizeof(token));
+            memcpy(token, line + 8, strlen(line) - 8 - newline);
         }
         else if(stringBeginsWithString(line, "zone = "))
         {
@@ -415,7 +415,14 @@ void update_ips(struct configuration * config)
 
 int main(int argc, char *argv[])
 {
-    struct configuration config = {};
+    struct configuration config = {
+        60, // interval
+        10, // throttle;
+        0, //v4
+        0, //v6
+        "", // ipv4
+        "" // ipv6
+    };
     getConfig(&config);
 
     while(1)

@@ -17,6 +17,7 @@ To get started with `config.ini` rename `config.example.ini` to `config.ini` and
 At the top of the file there should be Initialization configuration. The fields are:  
   
 `interval` How often to check if ip has changed in seconds.
+`throttle` How long to wait between api calls when updating IP:s
   
 ### Records configuration
   
