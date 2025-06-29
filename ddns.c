@@ -7,6 +7,9 @@
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
 #define IPV6STRINGLENGTH 40 // 1234:5678:90AB:CDEF:1234:5678:90AB:CDEF + Null
 
+#define IPV4CHANGED 0b00000001
+#define IPV6CHANGED 0b00000010
+
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
 
@@ -14,8 +17,8 @@ int checkInterval = 60; // in seconds
 int throttleInterval = 10; // in seconds
 char ipv4Enabled = 0;
 char ipv6Enabled = 0;
-char ipv4Address[IPV4STRINGLENGTH];
-char ipv6Address[IPV6STRINGLENGTH];
+char ipv4Address[IPV4STRINGLENGTH] = "127.0.0.1";
+char ipv6Address[IPV6STRINGLENGTH] = "::1";
 
 char stringBeginsWithString(char* string, char* beginsWith)
 {
@@ -196,19 +199,22 @@ char fetch_ips()
     get_ipv4(ipv4, ipv4Enabled);
     get_ipv6(ipv6, ipv6Enabled);
 
-    if(strcmp(ipv4, ipv4Address) != 0 || strcmp(ipv6, ipv6Address) != 0)
+    char returnValue = 0;
+
+    if(strcmp(ipv4, ipv4Address) != 0)
     {
-        printf("IPs changed\n");
+        printf("ipv4 address changed\n");
         memcpy(ipv4Address, ipv4, sizeof(ipv4));
-        memcpy(ipv6Address, ipv6, sizeof(ipv6));
-        printf("\n");
-        return 1;
+        returnValue |= IPV4CHANGED;
     }
-    else
+    if(strcmp(ipv6, ipv6Address) != 0)
     {
-        printf("\n");
-        return 0;
+        printf("ipv6 address changed\n");
+        memcpy(ipv6Address, ipv6, sizeof(ipv6));
+        returnValue |= IPV6CHANGED;
     }
+
+    return returnValue;
 }
 
 void getConfig()
@@ -351,7 +357,7 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
     sleep(throttleInterval);
 }
 
-void update_ips()
+void update_ips(char ipsUpdated)
 {
     //read config.ini for cloudflare ids
     FILE *fp;
@@ -395,16 +401,21 @@ void update_ips()
         }
         else if(stringBeginsWithString(line, "ipv4 = "))
         {
-
-            memset(record, 0, sizeof(record));
-            memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(token, zone, name, record, 0);
+            if(ipsUpdated & IPV4CHANGED)
+            {
+                memset(record, 0, sizeof(record));
+                memcpy(record, line + 7, strlen(line) - 7 - newline);
+                setRecord(token, zone, name, record, 0);
+            }
         }
         else if(stringBeginsWithString(line, "ipv6 = "))
         {
-            memset(record, 0, sizeof(record));
-            memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(token, zone, name, record, 1);
+            if(ipsUpdated & IPV6CHANGED)
+            {
+                memset(record, 0, sizeof(record));
+                memcpy(record, line + 7, strlen(line) - 7 - newline);
+                setRecord(token, zone, name, record, 1);
+            }
         }
     }
 
@@ -417,9 +428,10 @@ int main(int argc, char *argv[])
 
     while(1)
     {
-        if(fetch_ips())
+        char ipsUpdated = fetch_ips();
+        if(ipsUpdated)
         {
-            update_ips();
+            update_ips(ipsUpdated);
         }
         sleep(checkInterval);
     }
