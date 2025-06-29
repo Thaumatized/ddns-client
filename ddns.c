@@ -9,20 +9,18 @@
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
+
+int checkInterval = 60; // in seconds
+int throttleInterval = 10; // in seconds
+char ipv4Enabled = 0;
+char ipv6Enabled = 0;
+char ipv4Address[IPV4STRINGLENGTH];
+char ipv6Address[IPV6STRINGLENGTH];
+
 char stringBeginsWithString(char* string, char* beginsWith)
 {
     return strncmp(string, beginsWith, strlen(beginsWith)) == 0;
 }
-
-struct configuration
-{
-    int interval;
-    int throttle;
-    char v4;
-    char v6;
-    char ipv4[IPV4STRINGLENGTH];
-    char ipv6[IPV6STRINGLENGTH];
-};
 
 char valid_ipv4(char *ipv4)
 {
@@ -185,24 +183,24 @@ void get_ipv6(char *ipv6, char enabled)
     printf("IPv6: %s\n", ipv6);
 }
 
-char fetch_ips(struct configuration *config)
+char fetch_ips()
 {
     printf("Fetching IPs\n");
     char ipv4[IPV4STRINGLENGTH];
     char ipv6[IPV6STRINGLENGTH];
 
     //These are important to prevent the program from updating the records if one of the IPs is invalid
-    memcpy(ipv4, config->ipv4, sizeof(ipv4));
-    memcpy(ipv6, config->ipv6, sizeof(ipv6));
+    memcpy(ipv4, ipv4Address, sizeof(ipv4));
+    memcpy(ipv6, ipv6Address, sizeof(ipv6));
 
-    get_ipv4(ipv4, config->v4);
-    get_ipv6(ipv6, config->v6);
+    get_ipv4(ipv4, ipv4Enabled);
+    get_ipv6(ipv6, ipv6Enabled);
 
-    if(strcmp(ipv4, config->ipv4) != 0 || strcmp(ipv6, config->ipv6) != 0)
+    if(strcmp(ipv4, ipv4Address) != 0 || strcmp(ipv6, ipv6Address) != 0)
     {
         printf("IPs changed\n");
-        memcpy(config->ipv4, ipv4, sizeof(ipv4));
-        memcpy(config->ipv6, ipv6, sizeof(ipv6));
+        memcpy(ipv4Address, ipv4, sizeof(ipv4));
+        memcpy(ipv6Address, ipv6, sizeof(ipv6));
         printf("\n");
         return 1;
     }
@@ -213,7 +211,7 @@ char fetch_ips(struct configuration *config)
     }
 }
 
-void getConfig(struct configuration *config)
+void getConfig()
 {
     //read config.ini for values
     FILE *fp;
@@ -252,23 +250,23 @@ void getConfig(struct configuration *config)
         }
         else if(stringBeginsWithString(line, "ipv4 = "))
         {
-            config->v4 = 1;
+            ipv4Enabled = 1;
             if(earliestRecordId == 0)
             earliestRecordId = lineNumber;
         }
         else if(stringBeginsWithString(line, "ipv6 = "))
         {
-            config->v6 = 1;
+            ipv6Enabled = 1;
             if(earliestRecordId == 0)
             earliestRecordId = lineNumber;
         }
         else if(stringBeginsWithString(line, "interval = "))
         {
-            config->interval = atoi(line + 11);
+            checkInterval = atoi(line + 11);
         }
         else if(stringBeginsWithString(line, "throttle = "))
         {
-            config->throttle = atoi(line + 11);
+            throttleInterval = atoi(line + 11);
         }
     }
 
@@ -312,7 +310,7 @@ void getConfig(struct configuration *config)
     fclose(fp);
 }
 
-void setRecord(struct configuration *config, char* token, char *zone, char* name, char *record, char ipv6)
+void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
 {
     char url[200];
     memset(url, 0, sizeof(url));
@@ -323,12 +321,12 @@ void setRecord(struct configuration *config, char* token, char *zone, char* name
     memset(type, 0, sizeof(type));
     if(ipv6)
     {
-        memcpy(ip, config->ipv6, strlen(config->ipv6));
+        memcpy(ip, ipv6Address, strlen(ipv6Address));
         strcpy(type, "AAAA");
     }
     else
     {
-        memcpy(ip, config->ipv4, strlen(config->ipv4));
+        memcpy(ip, ipv4Address, strlen(ipv4Address));
         strcpy(type, "A");
     }
 
@@ -350,10 +348,10 @@ void setRecord(struct configuration *config, char* token, char *zone, char* name
     system(command);
     printf("\n\n");
 
-    sleep(config->throttle);
+    sleep(throttleInterval);
 }
 
-void update_ips(struct configuration * config)
+void update_ips()
 {
     //read config.ini for cloudflare ids
     FILE *fp;
@@ -400,13 +398,13 @@ void update_ips(struct configuration * config)
 
             memset(record, 0, sizeof(record));
             memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(config, token, zone, name, record, 0);
+            setRecord(token, zone, name, record, 0);
         }
         else if(stringBeginsWithString(line, "ipv6 = "))
         {
             memset(record, 0, sizeof(record));
             memcpy(record, line + 7, strlen(line) - 7 - newline);
-            setRecord(config, token, zone, name, record, 1);
+            setRecord(token, zone, name, record, 1);
         }
     }
 
@@ -415,22 +413,14 @@ void update_ips(struct configuration * config)
 
 int main(int argc, char *argv[])
 {
-    struct configuration config = {
-        60, // interval
-        10, // throttle;
-        0, //v4
-        0, //v6
-        "", // ipv4
-        "" // ipv6
-    };
-    getConfig(&config);
+    getConfig();
 
     while(1)
     {
-        if(fetch_ips(&config))
+        if(fetch_ips())
         {
-            update_ips(&config);
+            update_ips();
         }
-        sleep(config.interval);
+        sleep(checkInterval);
     }
 }
