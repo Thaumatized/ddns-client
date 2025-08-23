@@ -116,6 +116,12 @@ char valid_ipv6(char *ipv6)
         }
     }
 
+    //Exclude local address ::1
+    if(ipv6[0] == ':')
+    {
+        return 0;
+    }
+
     //Exclude link local addresses
     if(ipv6[0] == 'f' && ipv6[1] == 'e' && ipv6[2] == '8' && ipv6[3] == '0')
     {
@@ -146,7 +152,7 @@ void get_ipv6(char *ipv6, char enabled)
     memset(path, 0, sizeof(path));
 
     /* Open the command for reading. */
-    fp = popen("/bin/ip address | grep \"/64 scope global dynamic mngtmpaddr\"", "r");
+    fp = popen("/bin/ip address | grep \"inet6\"", "r");
     if (fp == NULL) {
         printf("Failed to run command to get ipv6 \n" );
         exit(1);
