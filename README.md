@@ -8,7 +8,7 @@ The project is also currently only targeting debian, as it is the only operating
 
 install packages with `./packages.sh`    
 
-use `gcc ddns.c -o ddns` to compile.  
+use `gcc ddns.c https.c -o ddns -lcurl` to compile.  
   
 # Config
 
