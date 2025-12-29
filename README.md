@@ -5,8 +5,10 @@ This is my custom dynamic domain name service (ddns) client. This only works wit
 The project is also currently only targeting debian, as it is the only operating system relevant to my use case. It shouldn't be too hard to add support for other operating systems, as this is a relatively simple program. Finding the current ipv6 address is the only thing that might be a bit tricky.
   
 # Compiling
-  
-use `gcc ddns.c -o ddns` to compile.  
+
+install packages with `./packages.sh`    
+
+use `gcc ddns.c https.c -o ddns -lcurl` to compile.  
   
 # Config
 

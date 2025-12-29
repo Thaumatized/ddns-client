@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dirent.h>
 #include <unistd.h>
+
+#include "https.h"
 
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
 #define IPV6STRINGLENGTH 40 // 1234:5678:90AB:CDEF:1234:5678:90AB:CDEF + Null
@@ -11,7 +12,6 @@
 #define IPV6CHANGED 0b00000010
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
-
 
 int checkInterval = 60; // in seconds
 int throttleInterval = 10; // in seconds
@@ -58,31 +58,17 @@ void get_ipv4(char *ipv4, char enabled)
     }
 
     printf("Fetching ipv4:\n");
+    bool success = httpsRequest("https://api.ipify.org", HTTPS_GET, NULL, NULL);
 
-    FILE *fp;
-    char path[IPV4STRINGLENGTH];
-    memset(path, 0, sizeof(path));
-
-    /* Open the command for reading. */
-    fp = popen("/bin/curl https://api.ipify.org --silent --max-time 5", "r");
-    if (fp == NULL) {
-        printf("Failed to run command to get ipv4\n" );
-        exit(1);
-    }
-
-    fgets(path, sizeof(path), fp);
-    if(valid_ipv4(path))
+    if(success && valid_ipv4(httpsResult))
     {
         memset(ipv4, 0, IPV4STRINGLENGTH);
-        memcpy(ipv4, path, sizeof(path));
+        memcpy(ipv4, httpsResult, strlen(httpsResult));
     }
     else
     {
         printf("Failed to get ipv4\n");
     }
-
-    /* close */
-    pclose(fp);
 
     printf("IPv4: %s\n", ipv4);
 }
@@ -324,7 +310,7 @@ void getConfig()
 
 void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
 {
-    char url[200];
+    char url[256];
     memset(url, 0, sizeof(url));
     sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zone, record);
     char ip[IPV6STRINGLENGTH];
@@ -342,23 +328,34 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
         strcpy(type, "A");
     }
 
-    char command[1000];
-    memset(command, 0, sizeof(command));
-    sprintf(command, "/bin/curl \
-    --request PUT \
-    --url %s \
-    --header 'Content-Type: application/json' \
-    --header 'Authorization: Bearer %s' \
-    --data '{ \
-        \"content\": \"%s\", \
-        \"name\": \"%s\", \
-        \"type\": \"%s\" \
-    }' \
-    ", url, token, ip, name, type);
+    // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
+    // 40 = length of cloudflare token.
+    // min lenght  = 94
+    char headers[128];
+    memset(headers, 0, sizeof(headers));
+    sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
+    char* penis = "";
+
+    char data[256];
+    memset(data, 0, sizeof(data));
+    sprintf(data,
+        "{"
+            "\"content\":\"%s\","
+            "\"name\":\"%s\","
+            "\"type\":\"%s\""
+        "}",
+         ip, name, type);
 
     printf("Updating %s (%s) to %s\n", name, type, ip);
-    system(command);
-    printf("\n\n");
+    bool success = httpsRequest(url, HTTPS_PUT, headers, data);
+    if(success)
+    {
+        printf("RESULT: %s\n\n", httpsResult);
+    }
+    else
+    {
+        printf("FAILED\n\n");
+    }
 
     sleep(throttleInterval);
 }
@@ -430,6 +427,7 @@ void update_ips(char ipsUpdated)
 
 int main(int argc, char *argv[])
 {
+    httpsInitialize();
     getConfig();
 
     while(1)
