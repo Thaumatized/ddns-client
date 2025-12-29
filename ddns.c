@@ -60,9 +60,9 @@ void get_ipv4(char *ipv4, char enabled)
     }
 
     printf("Fetching ipv4:\n");
-    httpsRequest("https://api.ipify.org", HTTPS_GET, NULL, NULL);
+    bool success = httpsRequest("https://api.ipify.org", HTTPS_GET, NULL, NULL);
 
-    if(valid_ipv4(httpsResult))
+    if(success && valid_ipv4(httpsResult))
     {
         memset(ipv4, 0, IPV4STRINGLENGTH);
         memcpy(ipv4, httpsResult, strlen(httpsResult));
@@ -349,8 +349,15 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
          ip, name, type);
 
     printf("Updating %s (%s) to %s\n", name, type, ip);
-    httpsRequest(url, HTTPS_PUT, headers, data);
-    printf("\n\n");
+    bool success = httpsRequest(url, HTTPS_PUT, headers, data);
+    if(success)
+    {
+        printf("RESULT: %s\n\n", httpsResult);
+    }
+    else
+    {
+        printf("FAILED\n\n");
+    }
 
     sleep(throttleInterval);
 }
