@@ -17,4 +17,3 @@ ExecStart=/custom/ddns-client/ddns
 
 [Install]
 WantedBy=multi-user.target
-Wants=network-online.target

@@ -13,7 +13,6 @@
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
-
 int checkInterval = 60; // in seconds
 int throttleInterval = 10; // in seconds
 char ipv4Enabled = 0;
