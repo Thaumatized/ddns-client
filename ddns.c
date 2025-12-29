@@ -4,6 +4,8 @@
 #include <dirent.h>
 #include <unistd.h>
 
+#include <curl/curl.h>
+
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
 #define IPV6STRINGLENGTH 40 // 1234:5678:90AB:CDEF:1234:5678:90AB:CDEF + Null
 
@@ -58,6 +60,13 @@ void get_ipv4(char *ipv4, char enabled)
     }
 
     printf("Fetching ipv4:\n");
+
+    CURL *curl = curl_easy_init();
+    if(!curl)
+    {
+        printf("FAILED TO INITIALIZE CURL");
+        exit(1);
+    }
 
     FILE *fp;
     char path[IPV4STRINGLENGTH];
