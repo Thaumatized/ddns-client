@@ -3,6 +3,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <netdb.h>
+#include <ifaddrs.h>
+#include <linux/if_link.h>
+#include <net/if.h>
+
 #include "https.h"
 
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
@@ -133,11 +138,11 @@ void get_ipv6(char *ipv6, char enabled)
 
     printf("Fetching ipv6:\n");
 
+    /*
     FILE *fp;
     char path[150];
     memset(path, 0, sizeof(path));
 
-    /* Open the command for reading. */
     fp = popen("/bin/ip address | grep \"inet6\"", "r");
     if (fp == NULL) {
         printf("Failed to run command to get ipv6 \n" );
@@ -171,11 +176,129 @@ void get_ipv6(char *ipv6, char enabled)
     {
         printf("Failed to get ipv6\n");
     }
-
-    /* close */
+        
     pclose(fp);
+    */
 
-    printf("IPv6: %s\n", ipv6);
+    /*
+    struct addrinfo hints;
+    struct addrinfo *result;
+
+    memset(&hints, 0, sizeof(hints));
+    //hints.ai_family = AF_INET6;
+    hints.ai_family = AF_UNSPEC;
+
+    int success = getaddrinfo("localhost", NULL, &hints, &result);
+
+    if(success != 0)
+    {
+        printf("Failed to get ipv6, error %i\n", success);
+    }
+    else
+    {
+        struct addrinfo *looperAddrinfo = result;
+        do {
+            //printf("IPV6TEST %i\n", (*looperAddrinfo).ai_addrlen);
+            printf("IPV6TEST %i ", (*looperAddrinfo).ai_family);
+            for(int i = 0; i < (*looperAddrinfo).ai_addrlen; i++)
+            {
+                printf("%x-", (uint8_t)(*((*result).ai_addr)).sa_data[i]);
+            }
+            printf("\n");
+
+            looperAddrinfo = (*looperAddrinfo).ai_next;
+        } while (looperAddrinfo != NULL);   
+    }
+    */
+
+    struct ifaddrs *result;
+    char host[NI_MAXHOST];
+    int success;
+
+    success = getifaddrs(&result);
+    if(success != 0)
+    {
+        printf("Failed to get ipv6, error %i\n", success);
+    }
+    else
+    {
+        for(struct ifaddrs *addrinfo = result; addrinfo != NULL; addrinfo = addrinfo->ifa_next) {
+            if (addrinfo->ifa_addr == NULL)
+                   continue;
+
+            if(addrinfo->ifa_addr->sa_family == AF_INET6)
+            {
+                success = getnameinfo(
+                    addrinfo->ifa_addr,
+                    sizeof(struct sockaddr_in6),
+                    host,
+                    NI_MAXHOST,
+                    NULL,
+                    0,
+                    NI_NUMERICHOST
+                );
+                if (success != 0) {
+                    printf("getnameinfo() failed: %s\n", gai_strerror(success));
+                    exit(EXIT_FAILURE);
+                }
+                printf("\taddress: %s %i\n", host, addrinfo->ifa_flags);
+            }
+        }   
+    }
+    freeifaddrs(result);
+
+    /*
+               struct ifaddrs *ifaddr;
+           int family, s;
+           char host[NI_MAXHOST];
+
+           if (getifaddrs(&ifaddr) == -1) {
+               perror("getifaddrs");
+               exit(EXIT_FAILURE);
+           }
+
+           // Walk through linked list, maintaining head pointer so we can free list later.
+
+           for (struct ifaddrs *ifa = ifaddr; ifa != NULL;
+                    ifa = ifa->ifa_next) {
+               if (ifa->ifa_addr == NULL)
+                   continue;
+
+               family = ifa->ifa_addr->sa_family;
+
+               // Display interface name and family (including symbolic form of the latter for the common families).
+
+               printf("%-8s %s (%d)\n",
+                      ifa->ifa_name,
+                      (family == AF_PACKET) ? "AF_PACKET" :
+                      (family == AF_INET) ? "AF_INET" :
+                      (family == AF_INET6) ? "AF_INET6" : "???",
+                      family);
+
+               // For an AF_INET6 interface address, display the address.
+
+               if (family == AF_INET6) {
+                   s = getnameinfo(
+                        ifa->ifa_addr,
+                        sizeof(struct sockaddr_in6),
+                        host,
+                        NI_MAXHOST,
+                        NULL,
+                        0,
+                        NI_NUMERICHOST
+                    );
+                   if (s != 0) {
+                       printf("getnameinfo() failed: %s\n", gai_strerror(s));
+                       exit(EXIT_FAILURE);
+                   }
+                   printf("\t\taddress: <%s>\n", host);
+               }
+           }
+
+           freeifaddrs(ifaddr);
+    */
+
+    //printf("IPv6: %s\n", ipv6);
 }
 
 char fetch_ips()
@@ -427,6 +550,7 @@ void update_ips(char ipsUpdated)
 
 int main(int argc, char *argv[])
 {
+    /*
     httpsInitialize();
     getConfig();
 
@@ -439,4 +563,9 @@ int main(int argc, char *argv[])
         }
         sleep(checkInterval);
     }
+        /*/
+
+    char ipv6[1000];
+    get_ipv6(ipv6, true);
+    printf("IPV6: %s\n", ipv6);
 }
