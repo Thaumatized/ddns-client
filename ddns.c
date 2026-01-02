@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <netdb.h>
+#include <ifaddrs.h>
+
 #include "https.h"
 
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
@@ -133,47 +136,45 @@ void get_ipv6(char *ipv6, char enabled)
 
     printf("Fetching ipv6:\n");
 
-    FILE *fp;
-    char path[150];
-    memset(path, 0, sizeof(path));
+    struct ifaddrs *result;
+    char host[NI_MAXHOST];
+    int success;
 
-    /* Open the command for reading. */
-    fp = popen("/bin/ip address | grep \"inet6\"", "r");
-    if (fp == NULL) {
-        printf("Failed to run command to get ipv6 \n" );
-        exit(1);
-    }
-    
-    char ipv6gotset = 0;
-    while(fgets(path, sizeof(path), fp) != NULL)
+    success = getifaddrs(&result);
+    if(success != 0)
     {
-        printf("evaluating : %s", path);
-        if(valid_ipv6(path + 10))
-        {
-            int ipv6len = 0;
-            while(path[ipv6len+10] != '/' && ipv6len < IPV6STRINGLENGTH)
+        printf("Failed to get ipv6, error %i\n", success);
+    }
+    else
+    {
+        for(struct ifaddrs *addrinfo = result; addrinfo != NULL; addrinfo = addrinfo->ifa_next) {
+            if (addrinfo->ifa_addr == NULL)
+                   continue;
+
+            if(addrinfo->ifa_addr->sa_family == AF_INET6)
             {
-                ipv6len++;
+                success = getnameinfo(
+                    addrinfo->ifa_addr,
+                    sizeof(struct sockaddr_in6),
+                    host,
+                    NI_MAXHOST,
+                    NULL,
+                    0,
+                    NI_NUMERICHOST
+                );
+                if (success != 0) {
+                    printf("getnameinfo() failed: %s\n", gai_strerror(success));
+                    exit(EXIT_FAILURE);
+                }
+                printf("\tinterface: %s address: %s\n", addrinfo->ifa_name, host);
+                if(valid_ipv6(host))
+                {
+                    strcpy(ipv6, host);
+                }
             }
-            // + 10 is to jump over the "    inet6 " part of the string
-
-            memset(ipv6, 0, IPV6STRINGLENGTH);
-            memcpy(ipv6, path + 10, ipv6len);
-
-            ipv6gotset = 1;
-            break;
-        }
-        printf("rejected.\n");
-        memset(path, 0, sizeof(path));
-    };
-
-    if(!ipv6gotset)
-    {
-        printf("Failed to get ipv6\n");
+        }   
     }
-
-    /* close */
-    pclose(fp);
+    freeifaddrs(result);
 
     printf("IPv6: %s\n", ipv6);
 }
