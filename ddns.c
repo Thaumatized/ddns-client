@@ -5,8 +5,6 @@
 
 #include <netdb.h>
 #include <ifaddrs.h>
-#include <linux/if_link.h>
-#include <net/if.h>
 
 #include "https.h"
 
@@ -430,7 +428,6 @@ void update_ips(char ipsUpdated)
 
 int main(int argc, char *argv[])
 {
-    /*
     httpsInitialize();
     getConfig();
 
@@ -443,9 +440,4 @@ int main(int argc, char *argv[])
         }
         sleep(checkInterval);
     }
-        /*/
-
-    char ipv6[1000];
-    get_ipv6(ipv6, true);
-    printf("IPV6: %s\n", ipv6);
 }
