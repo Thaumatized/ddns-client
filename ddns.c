@@ -166,7 +166,7 @@ void get_ipv6(char *ipv6, char enabled)
                     printf("getnameinfo() failed: %s\n", gai_strerror(success));
                     exit(EXIT_FAILURE);
                 }
-                printf("\taddress: %s %i\n", host, addrinfo->ifa_flags);
+                printf("\tinterface: %s address: %s\n", addrinfo->ifa_name, host);
                 if(valid_ipv6(host))
                 {
                     strcpy(ipv6, host);

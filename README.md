@@ -31,3 +31,14 @@ After that configuration for the records. The fields are:
 `ipv6` The id of the record, if the record is ipv6  
   
 It is extremely important that `token`, `zone` and `name` have been defined before `ipv4` or `ipv6`. The records use the last defined `token`, `zone` and `name`. 
+
+### getting values for config
+
+token has to be got from the cloudflare settings.
+
+after that you can use the following commands repplacing [TOKEN] and [ZONE] as approppriate  
+get zone:  
+> /bin/curl --request GET --url https://api.cloudflare.com/client/v4/zones/ --header "Authorization: Bearer [TOKEN]"  
+
+get record id  
+> /bin/curl --request GET --url https://api.cloudflare.com/client/v4/zones/[ZONE]/dns_records/ --header "Authorization: Bearer [TOKEN]"  
