@@ -22,6 +22,7 @@ char ipv4Enabled = 0;
 char ipv6Enabled = 0;
 char ipv4Address[IPV4STRINGLENGTH] = "127.0.0.1";
 char ipv6Address[IPV6STRINGLENGTH] = "::1";
+char clientId[128] = "undefined";
 
 char stringBeginsWithString(char* string, char* beginsWith)
 {
@@ -231,6 +232,12 @@ void getConfig()
 
     while(fgets(line, sizeof(line), fp) != NULL)
     {
+        char newline = 0;
+        if(line[strlen(line) - 1] == '\n')
+        {
+            newline = 1;
+        }
+
         lineNumber++;
         if(stringBeginsWithString(line, "token = "))
         {
@@ -266,6 +273,11 @@ void getConfig()
         else if(stringBeginsWithString(line, "throttle = "))
         {
             throttleInterval = atoi(line + 11);
+        }
+        else if(stringBeginsWithString(line, "clientId = "))
+        {
+            memset(clientId, 0, sizeof(clientId));
+            memcpy(clientId, line + 11, strlen(line) - 11 - newline);
         }
     }
 
@@ -343,9 +355,10 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
         "{"
             "\"content\":\"%s\","
             "\"name\":\"%s\","
-            "\"type\":\"%s\""
+            "\"type\":\"%s\","
+            "\"comment\":\"ddns-client: %s\""
         "}",
-         ip, name, type);
+         ip, name, type, clientId);
 
     printf("Updating %s (%s) to %s\n", name, type, ip);
     bool success = httpsRequest(url, HTTPS_PUT, headers, data);
