@@ -11,8 +11,14 @@
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
 #define IPV6STRINGLENGTH 40 // 1234:5678:90AB:CDEF:1234:5678:90AB:CDEF + Null
 
-#define IPV4CHANGED 0b00000001
-#define IPV6CHANGED 0b00000010
+#define IPV4 0b00000001
+#define IPV6 0b00000010
+
+//These are really defined already but vscode deos not know that
+#ifndef NI_MAXHOST
+    #define NI_MAXHOST 128
+    #define NI_NUMERICHOST 1
+#endif
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
@@ -199,13 +205,13 @@ char fetch_ips()
     {
         printf("ipv4 address changed\n");
         memcpy(ipv4Address, ipv4, sizeof(ipv4));
-        returnValue |= IPV4CHANGED;
+        returnValue |= IPV4;
     }
     if(strcmp(ipv6, ipv6Address) != 0)
     {
         printf("ipv6 address changed\n");
         memcpy(ipv6Address, ipv6, sizeof(ipv6));
-        returnValue |= IPV6CHANGED;
+        returnValue |= IPV6;
     }
 
     return returnValue;
@@ -347,7 +353,6 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
     char headers[128];
     memset(headers, 0, sizeof(headers));
     sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
-    char* penis = "";
 
     char data[256];
     memset(data, 0, sizeof(data));
@@ -372,6 +377,42 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
     }
 
     sleep(throttleInterval);
+}
+
+
+// TODO: This is shit but working. Make it better pls.
+int getRecord(char* token, char *zone, char* name, bool ipv6, char* out)
+{
+    char queryOutput[1024];
+    memset(queryOutput, 0, 1024);
+
+        char url[256];
+    memset(url, 0, sizeof(url));
+    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/", zone);
+
+    // 40 = length of cloudflare token.
+    char headers[64];
+    memset(headers, 0, sizeof(headers));
+    sprintf(headers, "Authorization: Bearer %s", token);
+
+    printf("GET RECORD %s \n", name);
+    bool success = httpsRequest(url, HTTPS_GET, headers, NULL);
+
+    int nameIndex = 0;
+    for(;nameIndex < strlen(httpsResult); nameIndex++)
+    {
+        if(stringBeginsWithString(httpsResult+nameIndex, name)) break;
+    }
+
+    if(!stringBeginsWithString(httpsResult+nameIndex, name)) {
+        printf("Failed to get with name %s\n", name);
+        return 0;
+    }
+
+    // "1234567890abcdef1234567890abcdef\",\"name\":\"" -> 42 + null
+    // "1234567890abcdef1234567890abcdef" -> 32
+    memcpy(out, httpsResult+nameIndex-42, 32);
+    return 1;
 }
 
 void update_ips(char ipsUpdated)
@@ -418,7 +459,7 @@ void update_ips(char ipsUpdated)
         }
         else if(stringBeginsWithString(line, "ipv4 = "))
         {
-            if(ipsUpdated & IPV4CHANGED)
+            if(ipsUpdated & IPV4)
             {
                 memset(record, 0, sizeof(record));
                 memcpy(record, line + 7, strlen(line) - 7 - newline);
@@ -427,7 +468,7 @@ void update_ips(char ipsUpdated)
         }
         else if(stringBeginsWithString(line, "ipv6 = "))
         {
-            if(ipsUpdated & IPV6CHANGED)
+            if(ipsUpdated & IPV6)
             {
                 memset(record, 0, sizeof(record));
                 memcpy(record, line + 7, strlen(line) - 7 - newline);
@@ -441,6 +482,7 @@ void update_ips(char ipsUpdated)
 
 int main(int argc, char *argv[])
 {
+    /*
     httpsInitialize();
     getConfig();
 
@@ -453,4 +495,11 @@ int main(int argc, char *argv[])
         }
         sleep(checkInterval);
     }
+    */
+
+    httpsInitialize();
+    char DNSOUT[33];
+    memset(DNSOUT, '\0', 33);
+    getRecord("TOKEN HERE", "ZONE HERE", "DOMAIN HERE", true, DNSOUT);
+    printf("dnsout %s\n", DNSOUT);
 }
