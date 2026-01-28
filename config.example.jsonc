@@ -1,0 +1,26 @@
+{
+  "clientId": "example-client",
+  "checkInterval": 60,
+  "throttleInterval": 10,
+  "configs": [
+    {
+      "provider": "cloudflare",
+      "token": "liibalaabathisisatoken",
+      "zones": [
+        {
+          "name": "thaumatized.com",
+          "records": [
+            {
+              "type": "A",
+              "domain": "ddnstest.thaumatized.com",
+            },
+            {
+              "type": "AAAA",
+              "domain": "ddnstest.thaumatized.com",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+}

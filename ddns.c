@@ -7,6 +7,7 @@
 #include <ifaddrs.h>
 
 #include "https.h"
+#include "json.h"
 
 #define IPV4STRINGLENGTH 16 // 123.123.123.123 + Null
 #define IPV6STRINGLENGTH 40 // 1234:5678:90AB:CDEF:1234:5678:90AB:CDEF + Null
@@ -22,13 +23,24 @@
 
 // huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
 
+char clientId[128] = "undefined";
 int checkInterval = 60; // in seconds
 int throttleInterval = 10; // in seconds
-char ipv4Enabled = 0;
-char ipv6Enabled = 0;
+
+char protocolsEnabled = 0;
 char ipv4Address[IPV4STRINGLENGTH] = "127.0.0.1";
 char ipv6Address[IPV6STRINGLENGTH] = "::1";
-char clientId[128] = "undefined";
+
+typedef struct cloudflareConfig {
+    int type;
+    char *domain;
+    char *zoneId;
+    char *token;
+    
+    struct cloudflareConfig *next;
+} cloudflareConfig;
+
+cloudflareConfig *rootCloudflareConfig;
 
 char stringBeginsWithString(char* string, char* beginsWith)
 {
@@ -219,112 +231,152 @@ char fetch_ips()
 
 void getConfig()
 {
-    //read config.ini for values
     FILE *fp;
-    fp = fopen("config.ini", "r");
+    fp = fopen("config.jsonc", "r");
     if (fp == NULL) {
-        printf("Failed to open config.ini\n" );
+        printf("Failed to open config.jsonc\n" );
         exit(1);
     }
-
-    char line[250];
-
-    //Used for verification
-    unsigned int lineNumber = 0;
-    unsigned int earliestToken = 0;
-    unsigned int earliestZone = 0;
-    unsigned int earliestName = 0;
-    unsigned int earliestRecordId = 0;
-
-    while(fgets(line, sizeof(line), fp) != NULL)
-    {
-        char newline = 0;
-        if(line[strlen(line) - 1] == '\n')
-        {
-            newline = 1;
-        }
-
-        lineNumber++;
-        if(stringBeginsWithString(line, "token = "))
-        {
-            if(earliestToken == 0)
-            earliestToken = lineNumber;
-        }
-        else if(stringBeginsWithString(line, "zone = "))
-        {
-            if(earliestZone == 0)
-            earliestZone = lineNumber;
-        }
-        else if(stringBeginsWithString(line, "name = "))
-        {
-            if(earliestName == 0)
-            earliestName = lineNumber;
-        }
-        else if(stringBeginsWithString(line, "ipv4 = "))
-        {
-            ipv4Enabled = 1;
-            if(earliestRecordId == 0)
-            earliestRecordId = lineNumber;
-        }
-        else if(stringBeginsWithString(line, "ipv6 = "))
-        {
-            ipv6Enabled = 1;
-            if(earliestRecordId == 0)
-            earliestRecordId = lineNumber;
-        }
-        else if(stringBeginsWithString(line, "interval = "))
-        {
-            checkInterval = atoi(line + 11);
-        }
-        else if(stringBeginsWithString(line, "throttle = "))
-        {
-            throttleInterval = atoi(line + 11);
-        }
-        else if(stringBeginsWithString(line, "clientId = "))
-        {
-            memset(clientId, 0, sizeof(clientId));
-            memcpy(clientId, line + 11, strlen(line) - 11 - newline);
-        }
-    }
-
-    if(earliestToken == 0)
-    {
-        printf("No token specified in config.ini\n");
+    fseek(fp, 0, SEEK_END);
+    long fsize = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    char *string = malloc(fsize + 1);
+    if (string == NULL) {
+        printf("Failed to allocate space for config string\n" );
         exit(1);
     }
-    if(earliestZone == 0)
-    {
-        printf("No zone specified in config.ini\n");
-        exit(1);
-    }
-    if(earliestName == 0)
-    {
-        printf("No Name specified in config.ini\n");
-        exit(1);
-    }
-    if(earliestRecordId == 0)
-    {
-        printf("No records specified in config.ini\n");
-        exit(1);
-    }
-
-    if(earliestToken > earliestRecordId)
-    {
-        printf("A token must be defined before record Id:s config.ini, %u %u \n", earliestToken, earliestRecordId);
-        exit(1);
-    }
-    if(earliestZone > earliestRecordId)
-    {
-        printf("A zone must be defined before record Id:s config.ini\n");
-        exit(1);
-    }
-    if(earliestName > earliestRecordId)
-    {
-        printf("A name must be defined before record Id:s config.ini\n");
-        exit(1);
-    }
-
+    fread(string, fsize, 1, fp);
     fclose(fp);
+    string[fsize] = '\0';
+    char error[JSON_MAX_ERROR];
+    JSON *configRootJson = jsonParse(string, error);
+    if(configRootJson == NULL)
+    {
+        printf("JSON PARSE ERROR: %s\n", error);
+        exit(1);
+    }
+    free(string);
+
+    // client id
+    {
+        char *clientIdFromConfig = jsonGetString(configRootJson, "clientId", error);
+        if(*error != '\0')
+        {
+            printf("JSON ERROR: %s\n", error);
+            printf("Failed to get clientId; defaulting to \"%s\"\n", clientId);
+            memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+        }
+        else
+        {
+            memset(clientId, '\0', sizeof(clientId));
+            strncpy(clientId, clientIdFromConfig, sizeof(clientId-1));
+        }
+    }
+
+    // checkInterval
+    {
+        double interval = jsonGetNumber(configRootJson, "checkInterval", error);
+        if(*error != '\0')
+        {
+            printf("JSON ERROR: %s\n", error);
+            printf("Failed to get checkInterval; defaulting to \"%g\"\n", checkInterval);
+            memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+        }
+        else
+        {
+            checkInterval = interval;
+        }
+    }
+
+    // throttleInterval
+    {
+        double interval = jsonGetNumber(configRootJson, "throttleInterval", error);
+        if(*error != '\0')
+        {
+            printf("JSON ERROR: %s\n", error);
+            printf("Failed to get throttleInterval; defaulting to \"%g\"\n", throttleInterval);
+            memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+        }
+        else
+        {
+            throttleInterval = interval;
+        }
+    }
+
+    //Configs
+    {
+    JSON *configJson = jsonGetArray(configRootJson, "configs", error);
+        if(*error != '\0')
+        {
+            printf("JSON ERROR: %s\n", error);
+            printf("Failed to get config\n");
+            exit(1);
+        }
+        else
+        {
+            for (configJson = configJson->children; configJson != NULL; configJson = configJson->nextSibling)
+            {
+                if(configJson->type != JSON_OBJECT)
+                {
+                    printf("a config is not an object!\nFailed to get configs\n");
+                    exit(1);
+                }
+
+                char *provider = jsonGetString(configJson, "provider", error);
+                if(*error != '\0')
+                {
+                    printf("JSON ERROR: %s\n", error);
+                    printf("Failed to get provider, skipping config\n");
+                    memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+                    continue;
+                }
+
+                if(!strcmp(provider, "cloudflare"))
+                {
+                    char *token = jsonGetString(configJson, "token", error); 
+                    if(*error != '\0')
+                    {
+                        printf("JSON ERROR: %s\n", error);
+                        printf("Failed to get token, skipping config\n");
+                        memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+                        continue;
+                    }
+                    token = strdup(token);
+
+                    JSON *zoneJson = jsonGetArray(configJson, "zones", error);
+                    if(zoneJson == NULL)
+                    {
+                        printf("JSON ERROR: %s\n", error);
+                        printf("Failed to get zones, skipping config\n");
+                        memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+                        continue;
+                    }
+
+                    
+                    for (zoneJson = zoneJson->children; zoneJson != NULL; zoneJson = zoneJson->nextSibling)
+                    {
+                        char *zoneName = jsonGetString(zoneJson, "name", error); 
+                        if(*error != '\0')
+                        {
+                            printf("JSON ERROR: %s\n", error);
+                            printf("Failed to get zone name, skipping zone\n");
+                            memset(error, '\0', JSON_MAX_ERROR); //non fatal error; clear error for future errors
+                            continue;
+                        }
+                        zoneName = strdup(zoneName);
+
+                        // TODO IMPLEMENT SHIT
+                    }
+                }
+                else
+                {
+                    printf("unknown prodived '%s', skipping config\n", provider);
+                }
+            }
+        }   
+    }
+
+    jsonFree(configRootJson);
 }
 
 void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
@@ -378,6 +430,8 @@ void setRecord(char* token, char *zone, char* name, char *record, char ipv6)
 
     sleep(throttleInterval);
 }
+
+char *getZone(char *token, char *)
 
 
 // TODO: This is shit but working. Make it better pls.
@@ -482,7 +536,6 @@ void update_ips(char ipsUpdated)
 
 int main(int argc, char *argv[])
 {
-    /*
     httpsInitialize();
     getConfig();
 
@@ -495,11 +548,5 @@ int main(int argc, char *argv[])
         }
         sleep(checkInterval);
     }
-    */
 
-    httpsInitialize();
-    char DNSOUT[33];
-    memset(DNSOUT, '\0', 33);
-    getRecord("TOKEN HERE", "ZONE HERE", "DOMAIN HERE", true, DNSOUT);
-    printf("dnsout %s\n", DNSOUT);
 }
