@@ -1,5 +1,6 @@
 #pragma once
 #include <stdbool.h>
+#include <stdio.h>
 
 typedef enum { HTTPS_GET, HTTPS_POST, HTTPS_PUT, HTTPS_PATCH, HTTPS_DELETE } HTTPS_METHODS;
 

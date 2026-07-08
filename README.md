@@ -10,7 +10,7 @@ It is important to note, that right now the client does not differentiate betwee
 
 install packages with `./packages.sh`    
 
-use `gcc ddns.c https.c -o ddns -lcurl` to compile.  
+use `gcc ddns.c cloudflare.c https.c ipUtils.c json.c utils.c -o ddns -lcurl` to compile.  
   
 # Config
 

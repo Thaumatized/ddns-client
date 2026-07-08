@@ -1,10 +1,12 @@
 {
   "clientId": "example-client",
   "checkInterval": 60,
-  "throttleInterval": 10,
-  "configs": [
+  "throttleInterval": 5, // time to wait after each api call in seconds.
+
+  //each provider has its own configuration array. This makes things easier on the source code side.
+  "cloudflareConfigs": [
+    // Most likely it is best to have a config per token, but nothing is stopping you from having several configs for the same token.
     {
-      "provider": "cloudflare",
       "token": "liibalaabathisisatoken",
       "zones": [
         {
