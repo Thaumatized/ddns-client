@@ -52,6 +52,20 @@ void getConfigurations()
         throttleInterval = *jsonGetNumber(configRootJson, "throttleInterval");
     }
 
+    // modules configs
+    {
+        JSON *cloudflareConfigRoot = jsonGetArray(configRootJson, "cloudflareConfigs");
+        if(cloudflareConfigRoot != NULL)
+        {
+            protocolsEnabled |= setCloudflareConfigs(cloudflareConfigRoot);
+            printf("Cloudflare configs done");
+        }
+        else
+        {
+            printf("No cloudflare config found, skpping\n");
+        }
+    }
+
     // cant free the root, as cloudflare module keeps using its own config from within.
     //jsonFree(configRootJson);
 }
@@ -93,12 +107,15 @@ int getRecord(char* token, char *zone, char* name, bool ipv6, char* out)
 
 void update_ips(int ipsUpdated)
 {
+    printf("Updating IPs\n");
     updateCloudflareRecords(ipAddresses, ipsUpdated);
 }
 
 int main(int argc, char *argv[])
 {
+    printf("Initializing https\n");
     httpsInitialize();
+    printf("Initializing configurations\n");
     getConfigurations();
 
     while(1)

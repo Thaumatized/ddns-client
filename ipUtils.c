@@ -160,21 +160,25 @@ bool get_ipv6(char *out)
 
 IpAddresses getIpAddresses(int enabledFlags)
 {
-    printf("Fetching IPs\n");
+    printf("Fetching IPs, enabled: IPV4(%i), IPV6(%i)\n", enabledFlags & IPV4, enabledFlags & IPV6);
     IpAddresses ipAddresses = EMPTY_IP_ADDRESSES;
 
     if(enabledFlags & IPV4)
     {
         if(get_ipv4(ipAddresses.ipv4))
+        {
             ipAddresses.validIpAddresses |= IPV4;
+        }
     }
     if(enabledFlags & IPV6)
     {
         if(get_ipv6(ipAddresses.ipv6))
+        {
             ipAddresses.validIpAddresses |= IPV6;
+        }
     }
 
-    return ipAddresses;
+    printf("IP results:\n\tIPV4(%i): %s\n\tIPV6(%i): %s\n", ipAddresses.validIpAddresses & IPV4, ipAddresses.ipv4, ipAddresses.validIpAddresses & IPV6, ipAddresses.ipv6);
 
-    char returnValue = 0;
+    return ipAddresses;
 }

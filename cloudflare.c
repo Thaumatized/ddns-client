@@ -11,6 +11,8 @@ JSON *cloudflareConfigs;
 
 int setCloudflareConfigs(JSON *configs)
 {
+    printf("setCloudflareConfigs\n");
+    
     cloudflareConfigs = configs;
     int protocolsEnabled = 0;
 
@@ -23,98 +25,83 @@ int setCloudflareConfigs(JSON *configs)
             exit(1);
         }
 
-        char *provider = jsonGetString(configJson, "provider");
-        if(!strcmp(provider, "cloudflare"))
+        char *token = jsonGetString(configJson, "token"); 
+        // Since this data is required to figure out zone ids and shared between zones under the same token we fetch it first.
+        // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
+        // 40 = length of cloudflare token.
+        // min lenght  = 94
+        char headers[128];
+        memset(headers, 0, sizeof(headers));
+        sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
+        httpsRequest("https://api.cloudflare.com/client/v4/zones", HTTPS_GET, headers, NULL);
+        JSON *cloudflareZonesJson = jsonParse(httpsResult);
+        bool cloudflareApiSuccess = jsonGetBool(cloudflareZonesJson, "success");
+        if(!cloudflareApiSuccess)
         {
-            char *token = jsonGetString(configJson, "token"); 
-            token = strdup(token);
+            printf("Cloudflare api error: %s", httpsResult);
+            exit(1);
+        }
 
-            // Since this data is required to figure out zone ids and shared between zones under the same token we fetch it first.
-            // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
-            // 40 = length of cloudflare token.
-            // min lenght  = 94
-            char headers[128];
-            memset(headers, 0, sizeof(headers));
-            sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
-            httpsRequest("https://api.cloudflare.com/client/v4/zones", HTTPS_GET, headers, NULL);
-            JSON *cloudflareZonesJson = jsonParse(httpsResult);
-            bool cloudflareApiSuccess = jsonGetBool(cloudflareZonesJson, "success");
+        JSON *zoneJson = jsonGetArray(configJson, "zones");
+        for (zoneJson = zoneJson->children; zoneJson != NULL; zoneJson = zoneJson->nextSibling)
+        {
+            char *zoneName = jsonGetString(zoneJson, "name");
+            zoneName = zoneName;
+
+            //get zone id
+            JSON *cloudflareZoneJson = jsonGetArray(cloudflareZonesJson, "result");
+            char *zoneId = NULL;
+            for (cloudflareZoneJson = cloudflareZoneJson->children; cloudflareZoneJson != NULL; cloudflareZoneJson = cloudflareZoneJson->nextSibling)
+            {
+                char *name = jsonGetString(cloudflareZoneJson, "name");
+                if(!strcmp(name, zoneName))
+                {
+                    zoneId = jsonGetString(cloudflareZoneJson, "id");
+                    break;
+                }
+            }
+            
+            printf("ZONE ID: %s\n", zoneId);
+            /*
+                TODO: Set ids into config json so that we can use them later without fetching
+                int zoneIdLength = strlen(zoneId);
+                malloc(sizeof(JSON));
+            */
+
+            // Since this data is required to figure out record ids and shared between records under the same zone we fetch it first.
+            char url[256]; //min length is around 90 I think. Better safe than sorry.
+            snprintf(url, sizeof(url), "https://api.cloudflare.com/client/v4/zones/%s/dns_records", zoneId);
+            httpsRequest(url, HTTPS_GET, headers, NULL);
+            JSON *cloudflareRecordsJson = jsonParse(httpsResult);
+            cloudflareApiSuccess = jsonGetBool(cloudflareZonesJson, "success");
             if(!cloudflareApiSuccess)
             {
                 printf("Cloudflare api error: %s", httpsResult);
                 exit(1);
             }
 
-            JSON *zoneJson = jsonGetArray(configJson, "zones");
-            for (zoneJson = zoneJson->children; zoneJson != NULL; zoneJson = zoneJson->nextSibling)
+            printf("cloudflareRecordsJson: %s\n", jsonStringify(cloudflareRecordsJson));
+
+            //get records
+            JSON *recordJson = jsonGetArray(cloudflareRecordsJson, "result");
+            for (recordJson = recordJson->children; recordJson != NULL; recordJson = recordJson->nextSibling)
             {
-                char *zoneName = jsonGetString(zoneJson, "name");
-                zoneName = strdup(zoneName);
-
-                //get zone id
-                JSON *cloudflareZoneJson = jsonGetArray(cloudflareZonesJson, "result");
-                char *zoneId = NULL;
-                for (cloudflareZoneJson = cloudflareZoneJson->children; cloudflareZoneJson != NULL; cloudflareZoneJson = cloudflareZoneJson->nextSibling)
-                {
-                    char *name = jsonGetString(cloudflareZoneJson, "name");
-                    if(!strcmp(name, zoneName))
-                    {
-                        zoneId = strdup(jsonGetString(cloudflareZoneJson, "id"));
-                        break;
-                    }
-                }
+                char *recordName = jsonGetString(recordJson, "name");
+                char *recordType = jsonGetString(recordJson, "type");
+                char *recordId = jsonGetString(recordJson, "id");
+                char *recordComment = jsonStringify(jsonGetKey(recordJson, "comment"));
                 
-                printf("ZONE ID: %s\n", zoneId);
+                printf("RECORD ID: %s, for record %s (%s) (%s)\n", recordId, recordName, recordType, recordComment);
 
-                // Since this data is required to figure out record ids and shared between records under the same zone we fetch it first.
-                char url[256]; //min length is around 90 I think. Better safe than sorry.
-                snprintf(url, sizeof(url), "https://api.cloudflare.com/client/v4/zones/%s/dns_records", zoneId);
-                httpsRequest(url, HTTPS_GET, headers, NULL);
-                JSON *cloudflareRecordsJson = jsonParse(httpsResult);
-                cloudflareApiSuccess = jsonGetBool(cloudflareZonesJson, "success");
-                if(!cloudflareApiSuccess)
+                if(!strcmp(recordType, "A"))
                 {
-                    printf("Cloudflare api error: %s", httpsResult);
-                    exit(1);
+                    protocolsEnabled |= IPV4;
                 }
-
-                //get records
-                JSON *recordJson = jsonGetArray(zoneJson, "records");
-                for (recordJson = recordJson->children; recordJson != NULL; recordJson = recordJson->nextSibling)
+                if(!strcmp(recordType, "AAAA"))
                 {
-                    char *recordName = jsonGetString(recordJson, "name");
-                    char *recordType = jsonGetString(recordJson, "type");
-
-                    //get records id
-                    JSON *cloudflareRecordJson = jsonGetArray(cloudflareZonesJson, "result");
-                    char *recordId = NULL;
-                    for (cloudflareRecordJson = cloudflareRecordJson->children; cloudflareRecordJson != NULL; cloudflareRecordJson = cloudflareRecordJson->nextSibling)
-                    {
-                        char *name = jsonGetString(cloudflareRecordJson, "name");
-                        char *type = jsonGetString(cloudflareRecordJson, "type");
-                        if(!strcmp(name, recordName) && !strcmp(type, recordType))
-                        {
-                            recordId = strdup(jsonGetString(cloudflareRecordJson, "id"));
-                            break;
-                        }
-                    }
-                    printf("RECORD ID: %s, for record %s\n", recordId, recordName);
-
-                    if(!strcmp(recordType, "A"))
-                    {
-                        protocolsEnabled |= IPV4;
-                    }
-                    if(!strcmp(recordType, "AAAA"))
-                    {
-                        protocolsEnabled |= IPV6;
-                    }
+                    protocolsEnabled |= IPV6;
                 }
-                
             }
-        }
-        else
-        {
-            printf("unknown prodived '%s', skipping config\n", provider);
         }
     }   
 
@@ -135,7 +122,6 @@ void setRecord(char* token, char *zone, char* name, char *record, IpAddresses ad
         if(!strcmp(provider, "cloudflare"))
         {
             char *token = jsonGetString(configJson, "token"); 
-            token = strdup(token);
 
             // Since this data is required to figure out zone ids and shared between zones under the same token we fetch it first.
             // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
@@ -157,7 +143,7 @@ void setRecord(char* token, char *zone, char* name, char *record, IpAddresses ad
             for (zoneJson = zoneJson->children; zoneJson != NULL; zoneJson = zoneJson->nextSibling)
             {
                 char *zoneName = jsonGetString(zoneJson, "name");
-                zoneName = strdup(zoneName);
+                zoneName = zoneName;
 
                 //get zone id
                 JSON *cloudflareZoneJson = jsonGetArray(cloudflareZonesJson, "result");
@@ -167,7 +153,7 @@ void setRecord(char* token, char *zone, char* name, char *record, IpAddresses ad
                     char *name = jsonGetString(cloudflareZoneJson, "name");
                     if(!strcmp(name, zoneName))
                     {
-                        zoneId = strdup(jsonGetString(cloudflareZoneJson, "id"));
+                        zoneId = jsonGetString(cloudflareZoneJson, "id");
                         break;
                     }
                 }
@@ -202,7 +188,7 @@ void setRecord(char* token, char *zone, char* name, char *record, IpAddresses ad
                         char *type = jsonGetString(cloudflareRecordJson, "type");
                         if(!strcmp(name, recordName) && !strcmp(type, recordType))
                         {
-                            recordId = strdup(jsonGetString(cloudflareRecordJson, "id"));
+                            recordId = jsonGetString(cloudflareRecordJson, "id");
                             break;
                         }
                     }
