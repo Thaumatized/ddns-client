@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 JSON *cloudflareConfigs;
 
@@ -77,8 +78,6 @@ int setCloudflareConfigs(JSON *configs)
                 exit(1);
             }
 
-            printf("cloudflareRecordsJson: %s\n", jsonStringify(cloudflareRecordsJson));
-
             //get records
             JSON *recordJson = jsonGetArray(zoneJson, "records");
             for (recordJson = recordJson->children; recordJson != NULL; recordJson = recordJson->nextSibling)
@@ -127,33 +126,30 @@ int setCloudflareConfigs(JSON *configs)
 
                 if(!recordHandled) {
                     // TODO automatically create the record
-                    printf("RECORD %s (%s) NOT HANDLED", jsonGetString(recordJson, "domain"), jsonGetString(recordJson, "type"));
+                    printf("RECORD %s (%s) NOT HANDLED\n", jsonGetString(recordJson, "domain"), jsonGetString(recordJson, "type"));
                 }
             }
         }
+        jsonFree(cloudflareZonesJson);
     }   
 
     return protocolsEnabled;
 }
 
-void setRecord(char* token, char *zone, char* name, char *record, IpAddresses addresses, char ipv6)
+void setRecord(char* token, char *zoneId, char *recordId, IpAddresses addresses, char recordType)
 {
     char url[256];
     memset(url, 0, sizeof(url));
-    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zone, record);
+    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneId, recordId);
     char ip[IPV6STRINGLENGTH];
-    char type[5];
     memset(ip, 0, sizeof(ip));
-    memset(type, 0, sizeof(type));
-    if(ipv6)
+    if(recordType & IPV6)
     {
         memcpy(ip, addresses.ipv6, strlen(addresses.ipv6));
-        strcpy(type, "AAAA");
     }
     else
     {
         memcpy(ip, addresses.ipv4, strlen(addresses.ipv4));
-        strcpy(type, "A");
     }
 
     // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
@@ -169,14 +165,12 @@ void setRecord(char* token, char *zone, char* name, char *record, IpAddresses ad
     sprintf(data,
         "{"
             "\"content\":\"%s\","
-            "\"name\":\"%s\","
-            "\"type\":\"%s\","
             "\"comment\":\"ddns-client: %s\""
         "}",
-         ip, name, type, jsonGetString(clientConfig, "clientId"));
+         ip, jsonGetString(clientConfig, "clientId"));
 
-    printf("Updating %s (%s) to %s\n", name, type, ip);
-    bool success = httpsRequest(url, HTTPS_PUT, headers, data);
+    printf("Updating %s to %s\n", recordId, ip);
+    bool success = httpsRequest(url, HTTPS_PATCH, headers, data);
     if(success)
     {
         printf("RESULT: %s\n\n", httpsResult);
@@ -198,40 +192,31 @@ void updateCloudflareRecords(IpAddresses addresses, int updated) {
             exit(1);
         }
 
-        char *provider = jsonGetString(configJson, "provider");
-        if(!strcmp(provider, "cloudflare"))
+        char *token = jsonGetString(configJson, "token"); 
+
+        JSON *zoneJson = jsonGetArray(configJson, "zones");
+        for (zoneJson = zoneJson->children; zoneJson != NULL; zoneJson = zoneJson->nextSibling)
         {
-            char *token = jsonGetString(configJson, "token"); 
+            char *zoneId = jsonGetString(zoneJson, "id");
 
-            JSON *zoneJson = jsonGetArray(configJson, "zones");
-            for (zoneJson = zoneJson->children; zoneJson != NULL; zoneJson = zoneJson->nextSibling)
+            JSON *recordJson = jsonGetArray(zoneJson, "records");
+            for (recordJson = recordJson->children; recordJson != NULL; recordJson = recordJson->nextSibling)
             {
-                char *zoneId = jsonGetString(zoneJson, "id");
+                char *recordId = jsonGetString(recordJson, "id");
+                char *recordTypeString = jsonGetString(recordJson, "type");
 
-                JSON *recordJson = jsonGetArray(zoneJson, "records");
-                for (recordJson = recordJson->children; recordJson != NULL; recordJson = recordJson->nextSibling)
+                int recordType = 0;
+                if(!strcmp(recordTypeString, "A"))
                 {
-                    char *recordId = jsonGetString(recordJson, "id");
-                    char *recordType = jsonGetString(recordJson, "type");
-
-                    int typeInt = 0;
-                    if(!strcmp(recordType, "A"))
-                    {
-                        typeInt = IPV4;
-                    }
-                    if(!strcmp(recordType, "AAAA"))
-                    {
-                        typeInt = IPV6;
-                    }
-
-                    setRecord(token, zoneId, recordId, addresses, typeInt)
+                    recordType = IPV4;
                 }
-                
+                if(!strcmp(recordTypeString, "AAAA"))
+                {
+                    recordType = IPV6;
+                }
+
+                setRecord(token, zoneId, recordId, addresses, recordType);
             }
         }
-        else
-        {
-            printf("unknown prodived '%s', skipping config\n", provider);
-        }
-    }   
+    }
 }
