@@ -5,12 +5,132 @@
 #include "ipUtils.h"
 #include "utils.h"
 #include "config.h"
+#include "ipUtils.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 JSON *cloudflareConfigs;
+
+
+char *createRecord(char* token, char*zoneId, char *recordName, char recordType)
+{
+    char url[256];
+    memset(url, 0, sizeof(url));
+    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/", zoneId);
+    char ip[IPV6STRINGLENGTH];
+    memset(ip, 0, sizeof(ip));
+    if(recordType & IPV6)
+    {
+        memcpy(ip, "1234:5678:90AB:CDEF:1234:5678:90AB:CDEF", strlen("1234:5678:90AB:CDEF:1234:5678:90AB:CDEF"));
+    }
+    else
+    {
+        memcpy(ip, "123.123.123.123", strlen("123.123.123.123"));
+    }
+
+    // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
+    // 40 = length of cloudflare token.
+    // min lenght  = 94
+    char headers[128];
+    memset(headers, 0, sizeof(headers));
+    sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
+
+    char recordTypeString[5];
+    memset(recordTypeString, '\0', sizeof(recordTypeString));
+    if(recordType & IPV4)
+    {
+        strcpy(recordTypeString, "A");
+    }
+    else
+    {
+        strcpy(recordTypeString, "AAAA");
+    }
+
+    // TODO: use new c-jsonc functions here
+    char data[256];
+    memset(data, 0, sizeof(data));
+    sprintf(data,
+        "{"
+            "\"name\":\"%s\","
+            "\"type\":\"%s\","
+            "\"content\":\"%s\","
+            "\"comment\":\"ddns-client: %s\""
+        "}",
+         recordName, recordTypeString, ip, jsonGetString(clientConfig, "clientId"));
+
+    printf("Creating record %s (%s)\n", recordName, recordTypeString);
+    bool success = httpsRequest(url, HTTPS_POST, headers, data);
+    if(success)
+    {
+        printf("RESULT: %s\n\n", httpsResult);
+    }
+    else
+    {
+        printf("FAILED\n\n");
+    }
+
+    sleep(*jsonGetNumber(clientConfig, "throttleInterval"));
+    if(success)
+    {
+        JSON *httpsJson = jsonParse(httpsResult);
+        char *id = strdup(jsonGetString(httpsJson, "result.id"));
+        jsonFree(httpsJson);
+        return id;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
+void setRecord(char* token, char *zoneId, char *recordId, IpAddresses addresses, char recordType)
+{
+    char url[256];
+    memset(url, 0, sizeof(url));
+    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneId, recordId);
+    char ip[IPV6STRINGLENGTH];
+    memset(ip, 0, sizeof(ip));
+    if(recordType & IPV6)
+    {
+        memcpy(ip, addresses.ipv6, strlen(addresses.ipv6));
+    }
+    else
+    {
+        memcpy(ip, addresses.ipv4, strlen(addresses.ipv4));
+    }
+
+    // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
+    // 40 = length of cloudflare token.
+    // min lenght  = 94
+    char headers[128];
+    memset(headers, 0, sizeof(headers));
+    sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
+
+    // TODO: use new c-jsonc functions here
+    char data[256];
+    memset(data, 0, sizeof(data));
+    sprintf(data,
+        "{"
+            "\"content\":\"%s\","
+            "\"comment\":\"ddns-client: %s\""
+        "}",
+         ip, jsonGetString(clientConfig, "clientId"));
+
+    printf("Updating %s to %s\n", recordId, ip);
+    bool success = httpsRequest(url, HTTPS_PATCH, headers, data);
+    if(success)
+    {
+        printf("RESULT: %s\n\n", httpsResult);
+    }
+    else
+    {
+        printf("FAILED\n\n");
+    }
+
+    sleep(*jsonGetNumber(clientConfig, "throttleInterval"));
+}
 
 int setCloudflareConfigs(JSON *configs)
 {
@@ -125,8 +245,19 @@ int setCloudflareConfigs(JSON *configs)
                 }
 
                 if(!recordHandled) {
-                    // TODO automatically create the record
-                    printf("RECORD %s (%s) NOT HANDLED\n", jsonGetString(recordJson, "domain"), jsonGetString(recordJson, "type"));
+                    char *recordType = jsonGetString(recordJson, "type");
+                    int typeInt = 0;
+                    if(!strcmp(recordType, "A"))
+                    {
+                        typeInt = IPV4;
+                    }
+                    if(!strcmp(recordType, "AAAA"))
+                    {
+                        typeInt = IPV6;
+                    }
+                    char *recordId = createRecord(token, zoneId, jsonGetString(recordJson, "domain"), typeInt);
+                    jsonSetString(recordJson, recordId, "id");
+                    free(recordId);
                 }
             }
         }
@@ -134,53 +265,6 @@ int setCloudflareConfigs(JSON *configs)
     }   
 
     return protocolsEnabled;
-}
-
-void setRecord(char* token, char *zoneId, char *recordId, IpAddresses addresses, char recordType)
-{
-    char url[256];
-    memset(url, 0, sizeof(url));
-    sprintf(url, "https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneId, recordId);
-    char ip[IPV6STRINGLENGTH];
-    memset(ip, 0, sizeof(ip));
-    if(recordType & IPV6)
-    {
-        memcpy(ip, addresses.ipv6, strlen(addresses.ipv6));
-    }
-    else
-    {
-        memcpy(ip, addresses.ipv4, strlen(addresses.ipv4));
-    }
-
-    // 54 = "Content-Type: application/json\nAuthorization: "+ NULL
-    // 40 = length of cloudflare token.
-    // min lenght  = 94
-    char headers[128];
-    memset(headers, 0, sizeof(headers));
-    sprintf(headers, "Content-Type: application/json\nAuthorization: Bearer %s", token);
-
-    // TODO use new c-jsonc functions here
-    char data[256];
-    memset(data, 0, sizeof(data));
-    sprintf(data,
-        "{"
-            "\"content\":\"%s\","
-            "\"comment\":\"ddns-client: %s\""
-        "}",
-         ip, jsonGetString(clientConfig, "clientId"));
-
-    printf("Updating %s to %s\n", recordId, ip);
-    bool success = httpsRequest(url, HTTPS_PATCH, headers, data);
-    if(success)
-    {
-        printf("RESULT: %s\n\n", httpsResult);
-    }
-    else
-    {
-        printf("FAILED\n\n");
-    }
-
-    sleep(*jsonGetNumber(clientConfig, "throttleInterval"));
 }
 
 void updateCloudflareRecords(IpAddresses addresses, int updated) {
