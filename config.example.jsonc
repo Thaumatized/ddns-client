@@ -1,7 +1,10 @@
 {
-  "clientId": "example-client",
-  "checkInterval": 60,
-  "throttleInterval": 5, // time to wait after each api call in seconds.
+  //Configurations here are only considered for this client.
+  "clientConfig": {
+    "clientId": "example-client",
+    "checkInterval": 60,
+    "throttleInterval": 5, // time to wait after each api call in seconds.
+  },
 
   //each provider has its own configuration array. This makes things easier on the source code side.
   "cloudflareConfigs": [

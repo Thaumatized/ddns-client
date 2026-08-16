@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "https.h"
+#include "config.h"
 #include "c-jsonc/json.h"
 
 #include "utils.h"
@@ -11,64 +12,9 @@
 
 #include "cloudflare.h"
 
-// huge thanks to https://stackoverflow.com/questions/646241/c-run-a-system-command-and-get-output
-
-char clientId[128] = "undefined";
-int checkInterval = 60; // in seconds
-int throttleInterval = 10; // in seconds
-
-int protocolsEnabled = 0;
 IpAddresses ipAddresses = EMPTY_IP_ADDRESSES;
 
-void getConfigurations()
-{
-    FILE *fp;
-    fp = fopen("config.jsonc", "r");
-    if (fp == NULL) {
-        printf("Failed to open config.jsonc\n" );
-        exit(1);
-    }
-    fseek(fp, 0, SEEK_END);
-    long fsize = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    char *string = malloc(fsize + 1);
-    if (string == NULL) {
-        printf("Failed to allocate space for config string\n" );
-        exit(1);
-    }
-    fread(string, fsize, 1, fp);
-    fclose(fp);
-    string[fsize] = '\0';
-    JSON *configRootJson = jsonParse(string);
-    free(string);
 
-    // Common
-    {
-        char *clientIdFromConfig = jsonGetString(configRootJson, "clientId");
-        memset(clientId, '\0', sizeof(clientId));
-        strncpy(clientId, clientIdFromConfig, sizeof(clientId-1));
-        
-        checkInterval = *jsonGetNumber(configRootJson, "checkInterval");
-        throttleInterval = *jsonGetNumber(configRootJson, "throttleInterval");
-    }
-
-    // modules configs
-    {
-        JSON *cloudflareConfigRoot = jsonGetArray(configRootJson, "cloudflareConfigs");
-        if(cloudflareConfigRoot != NULL)
-        {
-            protocolsEnabled |= setCloudflareConfigs(cloudflareConfigRoot);
-            printf("Cloudflare configs done");
-        }
-        else
-        {
-            printf("No cloudflare config found, skpping\n");
-        }
-    }
-
-    // cant free the root, as cloudflare module keeps using its own config from within.
-    //jsonFree(configRootJson);
-}
 
 // TODO: This is shit but working. Make it better pls.
 int getRecord(char* token, char *zone, char* name, bool ipv6, char* out)
@@ -116,7 +62,7 @@ int main(int argc, char *argv[])
     printf("Initializing https\n");
     httpsInitialize();
     printf("Initializing configurations\n");
-    getConfigurations();
+    readConfigs();
 
     while(1)
     {
@@ -140,7 +86,7 @@ int main(int argc, char *argv[])
         {
             update_ips(ipsUpdated);
         }
-        sleep(checkInterval);
+        sleep(*jsonGetNumber(clientConfig, "checkInterval"));
     }
 
 }
