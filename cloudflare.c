@@ -113,10 +113,9 @@ void setRecord(char* token, char *zoneId, char *recordId, IpAddresses addresses,
     memset(data, 0, sizeof(data));
     sprintf(data,
         "{"
-            "\"content\":\"%s\","
-            "\"comment\":\"ddns-client: %s\""
+            "\"content\":\"%s\""
         "}",
-         ip, jsonGetString(clientConfig, "clientId"));
+         ip);
 
     printf("Updating %s to %s\n", recordId, ip);
     bool success = httpsRequest(url, HTTPS_PATCH, headers, data);
