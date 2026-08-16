@@ -1,3 +1,3 @@
 [submodule "c-jsonc"]
 	path = c-jsonc
-	url = git@github.com:Thaumatized/c-jsonc.git
+	url = ../c-jsonc.git
