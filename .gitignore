@@ -2,8 +2,9 @@
 .vscode
 
 # Config files
-*.ini
-!config.example.ini
+*.jsonc
+*.json
+!config.example.jsonc
 
 # Executable
 ddns

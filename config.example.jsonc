@@ -1,0 +1,31 @@
+{
+  //Configurations here are only considered for this client.
+  "clientConfig": {
+    "clientId": "example-client",
+    "checkInterval": 60,
+    "throttleInterval": 5, // time to wait after each api call in seconds.
+  },
+
+  //each provider has its own configuration array. This makes things easier on the source code side.
+  "cloudflareConfigs": [
+    // Most likely it is best to have a config per token, but nothing is stopping you from having several configs for the same token.
+    {
+      "token": "liibalaabathisisatoken",
+      "zones": [
+        {
+          "name": "thaumatized.com",
+          "records": [
+            {
+              "type": "A",
+              "domain": "ddnstest.thaumatized.com",
+            },
+            {
+              "type": "AAAA",
+              "domain": "ddnstest.thaumatized.com",
+            },
+          ],
+        },
+      ],
+    },
+  ],
+}
