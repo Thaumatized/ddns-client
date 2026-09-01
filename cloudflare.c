@@ -249,10 +249,12 @@ int setCloudflareConfigs(JSON *configs)
                     if(!strcmp(recordType, "A"))
                     {
                         typeInt = IPV4;
+                        protocolsEnabled |= IPV4;
                     }
                     if(!strcmp(recordType, "AAAA"))
                     {
                         typeInt = IPV6;
+                        protocolsEnabled |= IPV6;
                     }
                     char *recordId = createRecord(token, zoneId, jsonGetString(recordJson, "domain"), typeInt);
                     jsonSetString(recordJson, recordId, "id");
